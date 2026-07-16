@@ -1,0 +1,138 @@
+.nav-files-container .fn-hidden-file {
+  display: none !important;
+}
+
+/* Default styling: color applied to parent so it can be easily overridden by css.css */
+.nav-folder-title.has-folder-note {
+  color: var(--interactive-accent);
+}
+
+.nav-folder-title.has-folder-note .nav-folder-title-content {
+  text-decoration: underline;
+  text-decoration-color: currentColor;
+  text-underline-offset: 3px;
+}
+
+/*=========================================*/
+
+/* Trash Manager Modal Styles */
+.tk-trash-modal {
+  max-width: 650px;
+  width: 90vw;
+}
+
+.tk-trash-action-bar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  align-items: center;
+}
+
+.tk-trash-search {
+  flex-grow: 1;
+  height: 38px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background-color: var(--background-primary);
+  color: var(--text-normal);
+}
+
+.tk-trash-search:focus {
+  border-color: var(--interactive-accent);
+  outline: none;
+}
+
+.tk-trash-empty-btn {
+  height: 38px;
+  white-space: nowrap;
+}
+
+.tk-trash-list {
+  max-height: 400px;
+  overflow-y: auto;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background-color: var(--background-secondary-alt);
+}
+
+.tk-trash-loading,
+.tk-trash-error,
+.tk-trash-empty-msg {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  color: var(--text-muted);
+}
+
+.tk-trash-empty-text {
+  font-size: 1.1em;
+  font-weight: 500;
+}
+
+.tk-trash-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.tk-trash-item:last-child {
+  border-bottom: none;
+}
+
+.tk-trash-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow: hidden;
+  margin-right: 16px;
+}
+
+.tk-trash-item-name {
+  font-weight: 600;
+  color: var(--text-normal);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+.tk-trash-item-path {
+  font-size: 0.85em;
+  color: var(--text-muted);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+.tk-trash-item-controls {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.tk-trash-btn {
+  padding: 6px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  background: none;
+  border: none;
+}
+
+.tk-trash-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.tk-confirm-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 20px;
+}
