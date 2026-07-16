@@ -78,6 +78,11 @@
   align-items: center;
   padding: 10px 16px;
   border-bottom: 1px solid var(--background-modifier-border);
+  transition: background-color 0.15s ease;
+}
+
+.tk-trash-item:hover {
+  background-color: var(--background-modifier-hover);
 }
 
 .tk-trash-item:last-child {
@@ -106,6 +111,7 @@
   white-space: nowrap;
   text-overflow: ellipsis;
   overflow: hidden;
+  flex-shrink: 1;
 }
 
 .tk-trash-item-controls {
@@ -135,4 +141,65 @@
   justify-content: flex-end;
   gap: 12px;
   margin-top: 20px;
+}
+
+.tk-confirm-buttons button {
+  padding: 6px 16px;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+/* Trash size and stats bar */
+.tk-trash-stats-bar {
+  margin-top: -8px;
+  margin-bottom: 16px;
+  font-size: 0.9em;
+  color: var(--text-muted);
+}
+
+.tk-trash-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.85em;
+  color: var(--text-muted);
+  width: 100%;
+}
+
+.tk-trash-item-divider {
+  flex-shrink: 0;
+}
+
+.tk-trash-item-size {
+  flex-shrink: 0;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 480px) {
+  .tk-trash-action-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .tk-trash-search {
+    width: 100%;
+  }
+
+  .tk-trash-empty-btn {
+    width: 100%;
+    height: 38px;
+  }
+
+  .tk-trash-item {
+    padding: 10px 12px;
+    gap: 8px;
+  }
+
+  .tk-trash-item-controls {
+    gap: 4px;
+  }
 }

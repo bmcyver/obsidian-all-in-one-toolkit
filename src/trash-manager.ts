@@ -6,6 +6,15 @@ interface TrashFile {
   originalPath: string; // e.g. "folder/note.md"
   name: string; // e.g. "note.md"
   mtime: number; // last modified time
+  size: number;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
 
 async function getTrashFiles(app: App): Promise<TrashFile[]> {
@@ -23,6 +32,7 @@ async function getTrashFiles(app: App): Promise<TrashFile[]> {
         originalPath,
         name,
         mtime: stat?.mtime || 0,
+        size: stat?.size || 0,
       });
     }
     for (const folder of list.folders) {
@@ -102,6 +112,7 @@ export class TrashManagerModal extends Modal {
   private filteredItems: TrashFile[] = [];
   private searchQuery = '';
   private listEl!: HTMLElement;
+  private statsTextEl!: HTMLElement;
 
   constructor(app: App, plugin: AllInOneToolkitPlugin) {
     super(app);
@@ -116,6 +127,10 @@ export class TrashManagerModal extends Modal {
     this.modalEl.addClass('tk-trash-modal');
 
     contentEl.createEl('h2', { text: '휴지통 관리자' });
+
+    // Stats bar
+    const statsEl = contentEl.createDiv({ cls: 'tk-trash-stats-bar' });
+    this.statsTextEl = statsEl.createSpan({ cls: 'tk-trash-stats-text' });
 
     // Action bar (Search & Empty Trash)
     const actionBar = contentEl.createDiv({ cls: 'tk-trash-action-bar' });
@@ -156,6 +171,7 @@ export class TrashManagerModal extends Modal {
 
     try {
       this.items = await getTrashFiles(this.app);
+      this.updateStats();
       this.filterAndRender();
     } catch (err) {
       this.listEl.empty();
@@ -164,6 +180,14 @@ export class TrashManagerModal extends Modal {
         cls: 'tk-trash-error',
       });
     }
+  }
+
+  updateStats() {
+    const totalCount = this.items.length;
+    const totalBytes = this.items.reduce((sum, item) => sum + item.size, 0);
+    this.statsTextEl.setText(
+      `총 ${totalCount}개 파일 • 크기: ${formatBytes(totalBytes)}`,
+    );
   }
 
   filterAndRender() {
@@ -195,9 +219,16 @@ export class TrashManagerModal extends Modal {
         text: item.name,
         cls: 'tk-trash-item-name setting-item-name',
       });
-      infoEl.createDiv({
-        text: item.originalPath,
-        cls: 'tk-trash-item-path setting-item-description',
+
+      // Meta container (Path • Size) for clean mobile support
+      const metaEl = infoEl.createDiv({
+        cls: 'tk-trash-item-meta setting-item-description',
+      });
+      metaEl.createSpan({ text: item.originalPath, cls: 'tk-trash-item-path' });
+      metaEl.createSpan({ text: ' • ', cls: 'tk-trash-item-divider' });
+      metaEl.createSpan({
+        text: formatBytes(item.size),
+        cls: 'tk-trash-item-size',
       });
 
       // Actions container

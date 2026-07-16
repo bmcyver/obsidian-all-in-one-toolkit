@@ -1,3 +1,8 @@
-# Obsidian Periodic Command
+# Obsidian All In One Toolkit
 
-A simple plugin for creating periodic notes in Obsidian.
+This plugin is made for personal use. 
+
+## Credits
+
+- https://github.com/xryul/obsidian-image-converter
+- https://github.com/LostPaul/obsidian-folder-notes
