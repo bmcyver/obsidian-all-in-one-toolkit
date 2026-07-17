@@ -1,7 +1,7 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
 import type { SettingDefinitionItem } from 'obsidian';
 import type AllInOneToolkitPlugin from './main';
-import { SUPPORTED_EXTENSIONS as FOLDER_NOTE_EXTENSIONS } from './folder-notes';
+import { SUPPORTED_EXTENSIONS as FOLDER_NOTE_EXTENSIONS } from './managers/folder-notes';
 
 export interface ToolkitSettings {
   // Image converter
@@ -67,6 +67,7 @@ export class AllInOneToolkitSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
+    // 1. Image Conversion Settings
     new Setting(containerEl).setName('Image to WebP').setHeading();
 
     new Setting(containerEl)
@@ -88,6 +89,7 @@ export class AllInOneToolkitSettingTab extends PluginSettingTab {
         });
       });
 
+    // 2. Folder Notes Settings
     new Setting(containerEl).setName('Folder Notes').setHeading();
 
     new Setting(containerEl)

@@ -1,129 +1,23 @@
 import { type Editor, Notice, TFile } from 'obsidian';
-import type HeicDecode from 'heic-decode';
-import type AllInOneToolkitPlugin from './main';
-
-// Constants
-export const SUPPORTED_IMAGE_TYPES = [
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'image/avif',
-  'image/heic',
-  'image/heif',
-];
-export const SUPPORTED_IMAGE_EXTENSIONS = [
-  'jpg',
-  'jpeg',
-  'png',
-  'webp',
-  'avif',
-  'heic',
-  'heif',
-];
-export const CONVERTED_NAME_REGEX = /.+-\d+\.(webp|avif)$/i;
-
-const MIME_BY_EXTENSION: Record<string, string> = {
-  jpg: 'image/jpeg',
-  jpeg: 'image/jpeg',
-  png: 'image/png',
-  webp: 'image/webp',
-  avif: 'image/avif',
-  heic: 'image/heic',
-  heif: 'image/heif',
-};
-
-// Lazily loaded decoder
-let heicDecode: typeof HeicDecode | null = null;
-
-// Helpers
-function getExtension(file: File | string): string {
-  const name = typeof file === 'string' ? file : file.name;
-  return name.split('.').pop()?.toLowerCase() ?? '';
-}
-
-function isHeicFile(file: File | string): boolean {
-  const ext = getExtension(file);
-  return ext === 'heic' || ext === 'heif';
-}
-
-function isAvifFile(file: File | string): boolean {
-  return getExtension(file) === 'avif';
-}
-
-function isValidImageFile(file: File): boolean {
-  if (isHeicFile(file)) return true;
-  if (!file.type.startsWith('image/')) return false;
-  if (!SUPPORTED_IMAGE_TYPES.includes(file.type)) {
-    new Notice('Only JPEG, PNG, WebP, AVIF, and HEIC are supported.');
-    return false;
-  }
-  return true;
-}
-
-function getImageMimeType(extension: string): string {
-  return MIME_BY_EXTENSION[extension.toLowerCase()] ?? `image/${extension}`;
-}
+import type AllInOneToolkitPlugin from '../main';
+import {
+  SUPPORTED_IMAGE_EXTENSIONS,
+  CONVERTED_NAME_REGEX,
+  isAvifFile,
+  isValidImageFile,
+  getImageMimeType,
+  toWebP,
+} from '../utils/image';
+import {
+  normalizeFileName,
+  ensureDirectoryExists,
+  formatBytes,
+} from '../utils/file';
 
 function buildAssetPath(basename: string, extension: string): string {
   return `assets/${new Date().getFullYear()}/${normalizeFileName(basename)}-${Date.now()}.${extension}`;
 }
 
-function normalizeFileName(name: string): string {
-  return name
-    .normalize('NFC')
-    .replace(/[\\/:*?"<>|[\]#^]/g, '')
-    .replace(/\s+/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^_+|_+$/g, '');
-}
-
-// WebP Conversion Core
-export async function toWebP(
-  file: File,
-  quality: number,
-): Promise<ArrayBuffer> {
-  let decoded: Awaited<ReturnType<typeof HeicDecode>> | null = null;
-
-  if (isHeicFile(file)) {
-    const heicData = new Uint8Array(await file.arrayBuffer());
-    if (!heicDecode) {
-      heicDecode = (await import('heic-decode')).default;
-    }
-    decoded = await heicDecode({ buffer: heicData });
-  }
-
-  const source = decoded
-    ? new ImageData(
-        new Uint8ClampedArray(decoded.data),
-        decoded.width,
-        decoded.height,
-      )
-    : file;
-  const bitmap = await createImageBitmap(source);
-
-  try {
-    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
-    const ctx = canvas.getContext('2d');
-
-    if (!ctx) throw new Error('Failed to create canvas context.');
-    ctx.drawImage(bitmap, 0, 0);
-
-    const blob = await canvas.convertToBlob({
-      type: 'image/webp',
-      quality: Math.max(0, Math.min(1, quality / 100)),
-    });
-
-    if (!blob) {
-      throw new Error('Failed to convert canvas to WebP blob.');
-    }
-
-    return await blob.arrayBuffer();
-  } finally {
-    bitmap.close();
-  }
-}
-
-// Manager class
 export class ImageConverterManager {
   private plugin: AllInOneToolkitPlugin;
 
@@ -197,6 +91,10 @@ export class ImageConverterManager {
     );
   }
 
+  onunload() {
+    // Lifecycle cleanup placeholder
+  }
+
   private async convertImage(
     file: File | TFile,
     isAvif: boolean,
@@ -224,17 +122,17 @@ export class ImageConverterManager {
     convertedSize: number,
     skipped: boolean,
   ) {
-    const originalSizeKB = (originalSize / 1024).toFixed(2);
+    const originalSizeStr = formatBytes(originalSize);
     if (skipped) {
-      new Notice(`Skipped ${basename}\n(${originalSizeKB} KB)`);
+      new Notice(`Skipped ${basename}\n(${originalSizeStr})`);
       return;
     }
-    const createdSizeKB = (convertedSize / 1024).toFixed(2);
+    const createdSizeStr = formatBytes(convertedSize);
     const ratio = Math.round(
       ((originalSize - convertedSize) / originalSize) * 100,
     );
     new Notice(
-      `Converted ${basename}\n(${originalSizeKB} KB -> ${createdSizeKB} KB ${ratio}%)`,
+      `Converted ${basename}\n(${originalSizeStr} -> ${createdSizeStr} ${ratio}%)`,
     );
   }
 
@@ -273,7 +171,7 @@ export class ImageConverterManager {
       shouldSkipConversion ? 'avif' : 'webp',
     );
 
-    await this.plugin.ensureDirectoryExists(destinationPath);
+    await ensureDirectoryExists(this.plugin.app, destinationPath);
 
     try {
       const originalSize = sourceFile.stat.size;
@@ -322,7 +220,7 @@ export class ImageConverterManager {
       shouldSkipConversion ? 'avif' : 'webp',
     );
 
-    await this.plugin.ensureDirectoryExists(destinationPath);
+    await ensureDirectoryExists(this.plugin.app, destinationPath);
 
     try {
       const outputData = await this.convertImage(
