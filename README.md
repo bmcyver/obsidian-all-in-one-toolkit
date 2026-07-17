@@ -1,6 +1,6 @@
 # Obsidian All In One Toolkit
 
-This plugin is made for personal use. 
+This plugin is made for personal use.
 
 ## Credits
 

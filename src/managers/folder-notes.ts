@@ -1,5 +1,6 @@
-import { TFolder, TFile, WorkspaceLeaf, Notice } from 'obsidian';
-import type AllInOneToolkitPlugin from './main';
+import { TFolder, TFile, type WorkspaceLeaf, Notice } from 'obsidian';
+import type AllInOneToolkitPlugin from '../main';
+import { splitFileName } from '../utils/file';
 
 export const SUPPORTED_EXTENSIONS = ['base', 'md', 'canvas'];
 
@@ -23,6 +24,7 @@ export class FolderNoteManager {
       );
     });
 
+    // Register click event listener on the active document
     this.plugin.registerDomEvent(activeDocument, 'click', this.onClick, {
       capture: true,
     });
@@ -145,8 +147,9 @@ export class FolderNoteManager {
     if (
       target.closest('.nav-folder-collapse-indicator') ||
       target.closest('.collapse-icon')
-    )
+    ) {
       return;
+    }
 
     const titleEl = target.closest('.nav-folder-title');
     if (!titleEl) return;
@@ -227,7 +230,7 @@ export class FolderNoteManager {
     const fileNameWithExt = parts.pop() ?? '';
     const parentFolderName = parts.length > 0 ? parts[parts.length - 1] : '';
 
-    const parsed = this.splitFileName(fileNameWithExt);
+    const parsed = splitFileName(fileNameWithExt);
     if (!parsed) return false;
 
     return (
@@ -254,17 +257,6 @@ export class FolderNoteManager {
       if (file instanceof TFile) return file;
     }
     return null;
-  }
-
-  private splitFileName(
-    fileNameWithExt: string,
-  ): { baseName: string; ext: string } | null {
-    const lastDot = fileNameWithExt.lastIndexOf('.');
-    if (lastDot <= 0 || lastDot === fileNameWithExt.length - 1) return null;
-    return {
-      baseName: fileNameWithExt.slice(0, lastDot),
-      ext: fileNameWithExt.slice(lastDot + 1),
-    };
   }
 
   async createNewFolderNote(folderPath: string) {
