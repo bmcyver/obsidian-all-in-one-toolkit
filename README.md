@@ -6,3 +6,4 @@ This plugin is made for personal use.
 
 - https://github.com/xryul/obsidian-image-converter
 - https://github.com/LostPaul/obsidian-folder-notes
+- https://github.com/flolu/obsidian-scroll-speed

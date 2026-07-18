@@ -5,6 +5,7 @@ import { PeriodicNotesManager } from './managers/periodic-notes';
 import { FolderNoteManager } from './managers/folder-notes';
 import { ImageConverterManager } from './managers/image-converter';
 import { TrashManager } from './managers/trash-manager';
+import { ScrollManager } from './managers/scroll-manager';
 
 interface PluginManager {
   onload(): void;
@@ -20,6 +21,7 @@ export default class AllInOneToolkitPlugin extends Plugin {
   folderNoteManager!: FolderNoteManager;
   imageConverterManager!: ImageConverterManager;
   trashManager!: TrashManager;
+  scrollManager!: ScrollManager;
 
   async onload() {
     await this.loadSettings();
@@ -29,12 +31,14 @@ export default class AllInOneToolkitPlugin extends Plugin {
     this.folderNoteManager = new FolderNoteManager(this);
     this.imageConverterManager = new ImageConverterManager(this);
     this.trashManager = new TrashManager(this);
+    this.scrollManager = new ScrollManager(this);
 
     this.managers = [
       this.periodicNotesManager,
       this.folderNoteManager,
       this.imageConverterManager,
       this.trashManager,
+      this.scrollManager,
     ];
 
     // 2. Load all managers
@@ -59,6 +63,7 @@ export default class AllInOneToolkitPlugin extends Plugin {
       quality?: number;
       folderNoteExtension?: string;
       defaultCreateExtension?: string;
+      scrollSpeed?: number;
     } | null;
 
     this.settings = {
@@ -68,6 +73,7 @@ export default class AllInOneToolkitPlugin extends Plugin {
         data?.folderNoteExtension ??
         data?.defaultCreateExtension ??
         DEFAULT_SETTINGS.folderNoteExtension,
+      scrollSpeed: data?.scrollSpeed ?? DEFAULT_SETTINGS.scrollSpeed,
     };
   }
 
