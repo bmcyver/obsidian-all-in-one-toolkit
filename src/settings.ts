@@ -1,4 +1,4 @@
-import { App, PluginSettingTab, Setting } from 'obsidian';
+import { App, PluginSettingTab, Setting, TextComponent } from 'obsidian';
 import type { SettingDefinitionItem } from 'obsidian';
 import type AllInOneToolkitPlugin from './main';
 import { SUPPORTED_EXTENSIONS as FOLDER_NOTE_EXTENSIONS } from './managers/folder-notes';
@@ -8,11 +8,14 @@ export interface ToolkitSettings {
   webpQuality: number;
   // Folder notes
   folderNoteExtension: string;
+  // Scroll speed
+  scrollSpeed: number;
 }
 
 export const DEFAULT_SETTINGS: ToolkitSettings = {
   webpQuality: 85,
   folderNoteExtension: 'md',
+  scrollSpeed: 1,
 };
 
 export class AllInOneToolkitSettingTab extends PluginSettingTab {
@@ -56,6 +59,23 @@ export class AllInOneToolkitSettingTab extends PluginSettingTab {
               options: Object.fromEntries(
                 FOLDER_NOTE_EXTENSIONS.map((ext) => [ext, `.${ext}`]),
               ),
+            },
+          },
+        ],
+      },
+      {
+        type: 'group',
+        heading: 'Scroll Speed',
+        items: [
+          {
+            name: 'Mouse scroll speed',
+            desc: 'Adjust the mouse scroll speed (0.05 to 2). 1 is the default speed.',
+            control: {
+              type: 'number',
+              key: 'scrollSpeed',
+              defaultValue: 1,
+              min: 0.05,
+              max: 2,
             },
           },
         ],
@@ -104,6 +124,41 @@ export class AllInOneToolkitSettingTab extends PluginSettingTab {
         dropdown.setValue(this.plugin.settings.folderNoteExtension);
         dropdown.onChange(async (value) => {
           this.plugin.settings.folderNoteExtension = value;
+          await this.plugin.saveSettings();
+        });
+      });
+
+    // 3. Scroll Speed Settings
+    new Setting(containerEl).setName('Scroll Speed').setHeading();
+
+    let scrollSpeedText: TextComponent;
+    new Setting(containerEl)
+      .setName('Mouse scroll speed')
+      .setDesc(
+        'Adjust the mouse scroll speed (0.05 to 2). 1 is the default speed.',
+      )
+      .addExtraButton((button) => {
+        button
+          .setIcon('reset')
+          .setTooltip('Restore default')
+          .onClick(async () => {
+            this.plugin.settings.scrollSpeed = DEFAULT_SETTINGS.scrollSpeed;
+            scrollSpeedText.setValue(String(DEFAULT_SETTINGS.scrollSpeed));
+            await this.plugin.saveSettings();
+          });
+      })
+      .addText((text) => {
+        scrollSpeedText = text;
+        text.inputEl.type = 'number';
+        text.inputEl.min = '0.05';
+        text.inputEl.max = '2';
+        text.inputEl.step = '0.05';
+        text.setValue(String(this.plugin.settings.scrollSpeed));
+        text.onChange(async (value) => {
+          let num = parseFloat(value);
+          if (isNaN(num)) return;
+          num = Math.max(0.05, Math.min(2, num));
+          this.plugin.settings.scrollSpeed = num;
           await this.plugin.saveSettings();
         });
       });
