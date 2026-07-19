@@ -1,27 +1,6 @@
 import { Notice } from 'obsidian';
 import type HeicDecode from 'heic-decode';
 
-export const SUPPORTED_IMAGE_TYPES = [
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'image/avif',
-  'image/heic',
-  'image/heif',
-];
-
-export const SUPPORTED_IMAGE_EXTENSIONS = [
-  'jpg',
-  'jpeg',
-  'png',
-  'webp',
-  'avif',
-  'heic',
-  'heif',
-];
-
-export const CONVERTED_NAME_REGEX = /.+-\d+\.(webp|avif)$/i;
-
 const MIME_BY_EXTENSION: Record<string, string> = {
   jpg: 'image/jpeg',
   jpeg: 'image/jpeg',
@@ -31,6 +10,12 @@ const MIME_BY_EXTENSION: Record<string, string> = {
   heic: 'image/heic',
   heif: 'image/heif',
 };
+
+export const SUPPORTED_IMAGE_TYPES = Object.values(MIME_BY_EXTENSION);
+
+export const SUPPORTED_IMAGE_EXTENSIONS = Object.keys(MIME_BY_EXTENSION);
+
+export const CONVERTED_NAME_REGEX = /.+-\d+\.(webp|avif)$/i;
 
 let heicDecode: typeof HeicDecode | null = null;
 
