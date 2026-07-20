@@ -17,13 +17,10 @@ export async function ensureDirectoryExists(
   let currentPath = '';
   for (const part of parts) {
     currentPath = currentPath ? `${currentPath}/${part}` : part;
-    const exists = app.vault.getAbstractFileByPath(currentPath);
-    if (!exists) {
-      try {
-        await app.vault.createFolder(currentPath);
-      } catch {
-        // Ignore folder exists error
-      }
+    try {
+      await app.vault.createFolder(currentPath);
+    } catch {
+      // Ignore folder exists error
     }
   }
 }

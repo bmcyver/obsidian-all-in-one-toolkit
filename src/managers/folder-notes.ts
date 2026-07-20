@@ -3,6 +3,7 @@ import { splitFileName } from '../utils/file';
 import { BaseManager } from './base';
 
 export const SUPPORTED_EXTENSIONS = ['base', 'md', 'canvas'];
+const NAV_FILES_CONTAINER = '.nav-files-container';
 
 export class FolderNoteManager extends BaseManager {
   private fileExplorerLeaves: WorkspaceLeaf[] = [];
@@ -24,17 +25,18 @@ export class FolderNoteManager extends BaseManager {
   }
 
   onload() {
-    this.plugin.app.workspace.onLayoutReady(() => {
-      if (!this.isEnabled()) return;
-      this.bindObservers();
-      this.plugin.registerEvent(
-        this.plugin.app.workspace.on('layout-change', () => {
-          if (this.isEnabled()) {
-            this.bindObservers();
-          }
-        }),
-      );
-    });
+    // bindObservers() requires workspace layout to be ready.
+    // BaseManager.enable() is called within app.workspace.onLayoutReady in main.ts,
+    // so the layout is guaranteed to be ready when onload() is executed.
+    this.bindObservers();
+
+    this.plugin.registerEvent(
+      this.plugin.app.workspace.on('layout-change', () => {
+        if (this.isEnabled()) {
+          this.bindObservers();
+        }
+      }),
+    );
 
     // Register click event listener on the active document
     this.plugin.registerDomEvent(activeDocument, 'click', this.onClick, {
@@ -84,9 +86,8 @@ export class FolderNoteManager extends BaseManager {
 
   private clearFolderStyles() {
     for (const leaf of this.fileExplorerLeaves) {
-      const container = leaf.view.containerEl.querySelector(
-        '.nav-files-container',
-      );
+      const container =
+        leaf.view.containerEl.querySelector(NAV_FILES_CONTAINER);
       if (!container) continue;
 
       container.querySelectorAll('.fn-hidden-file').forEach((el) => {
@@ -112,9 +113,8 @@ export class FolderNoteManager extends BaseManager {
       this.plugin.app.workspace.getLeavesOfType('file-explorer');
 
     for (const leaf of this.fileExplorerLeaves) {
-      const container = leaf.view.containerEl.querySelector(
-        '.nav-files-container',
-      );
+      const container =
+        leaf.view.containerEl.querySelector(NAV_FILES_CONTAINER);
       if (!container) continue;
 
       this.scheduleRefresh(container);
@@ -220,7 +220,7 @@ export class FolderNoteManager extends BaseManager {
     const target = evt.target as HTMLElement;
 
     // File Explorer clicks
-    const container = target.closest('.nav-files-container');
+    const container = target.closest(NAV_FILES_CONTAINER);
     if (container) {
       this.handleExplorerClick(evt, target);
     }
@@ -265,13 +265,22 @@ export class FolderNoteManager extends BaseManager {
       return;
     }
     for (const leaf of this.fileExplorerLeaves) {
-      const container = leaf.view.containerEl.querySelector(
-        '.nav-files-container',
-      );
+      const container =
+        leaf.view.containerEl.querySelector(NAV_FILES_CONTAINER);
       if (container) {
         this.scheduleRefresh(container);
       }
     }
+  }
+
+  private buildFolderNotePathSet(): Set<string> {
+    const set = new Set<string>();
+    for (const file of this.plugin.app.vault.getFiles()) {
+      if (this.isFolderNotePath(file.path)) {
+        set.add(file.path);
+      }
+    }
+    return set;
   }
 
   private refreshFolderStyles(
@@ -304,6 +313,9 @@ export class FolderNoteManager extends BaseManager {
     const folderElements = Array.from(
       targetFolders ?? container.querySelectorAll('.nav-folder'),
     );
+
+    const folderNotePathSet = this.buildFolderNotePathSet();
+
     folderElements.forEach((el) => {
       const titleEl = el.querySelector(':scope > .nav-folder-title');
       if (!titleEl) return;
@@ -311,8 +323,21 @@ export class FolderNoteManager extends BaseManager {
       const path = titleEl.getAttribute('data-path');
       if (path === null) return;
       const normalizedPath = this.normalizeFolderPath(path);
+      const parts = normalizedPath.split('/');
+      const folderName = parts[parts.length - 1] ?? '';
 
-      const hasNote = this.getFolderNoteFile(normalizedPath) !== null;
+      let hasNote = false;
+      if (normalizedPath && folderName && folderName !== '/') {
+        const prefix = `${normalizedPath}/`;
+        for (const ext of SUPPORTED_EXTENSIONS) {
+          const potentialPath = `${prefix}${folderName}.${ext}`;
+          if (folderNotePathSet.has(potentialPath)) {
+            hasNote = true;
+            break;
+          }
+        }
+      }
+
       const hasClass = titleEl.classList.contains('has-folder-note');
 
       if (hasNote && !hasClass) {

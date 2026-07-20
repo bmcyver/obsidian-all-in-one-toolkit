@@ -11,6 +11,8 @@ export interface TrashFile {
   size: number;
 }
 
+const TRASH_DIR = '.trash';
+
 export class TrashManager extends BaseManager {
   protected isEnabled(): boolean {
     return this.plugin.settings.trashManagerEnabled;
@@ -35,32 +37,44 @@ export class TrashManager extends BaseManager {
    */
   async getTrashFiles(): Promise<TrashFile[]> {
     const adapter = this.plugin.app.vault.adapter;
-    const files: TrashFile[] = [];
+    let files: TrashFile[] = [];
 
-    const recurse = async (dir: string) => {
-      const list = await adapter.list(dir);
-      for (const file of list.files) {
-        const stat = await adapter.stat(file);
-        const name = file.split('/').pop() || '';
-        const originalPath = file.substring('.trash/'.length);
-        files.push({
-          path: file,
-          originalPath,
-          name,
-          mtime: stat?.mtime || 0,
-          size: stat?.size || 0,
-        });
-      }
-      for (const folder of list.folders) {
-        await recurse(folder);
-      }
-    };
-
-    if (await adapter.exists('.trash')) {
-      await recurse('.trash');
+    if (await adapter.exists(TRASH_DIR)) {
+      files = await this.collectTrashFiles(TRASH_DIR);
     }
 
     files.sort((a, b) => b.mtime - a.mtime);
+    return files;
+  }
+
+  private async collectTrashFiles(dir: string): Promise<TrashFile[]> {
+    const adapter = this.plugin.app.vault.adapter;
+    const list = await adapter.list(dir);
+    const files: TrashFile[] = [];
+
+    // Parallelize stat() calls for files in the current folder
+    const stats = await Promise.all(list.files.map((f) => adapter.stat(f)));
+    list.files.forEach((file, i) => {
+      const stat = stats[i];
+      const name = file.split('/').pop() || '';
+      const originalPath = file.substring((TRASH_DIR + '/').length);
+      files.push({
+        path: file,
+        originalPath,
+        name,
+        mtime: stat?.mtime || 0,
+        size: stat?.size || 0,
+      });
+    });
+
+    // Recursively collect folders in parallel
+    const folderFilesResults = await Promise.all(
+      list.folders.map((folder) => this.collectTrashFiles(folder)),
+    );
+    for (const folderFiles of folderFilesResults) {
+      files.push(...folderFiles);
+    }
+
     return files;
   }
 
@@ -88,8 +102,8 @@ export class TrashManager extends BaseManager {
    */
   async emptyTrash(): Promise<void> {
     const adapter = this.plugin.app.vault.adapter;
-    if (await adapter.exists('.trash')) {
-      await adapter.rmdir('.trash', true);
+    if (await adapter.exists(TRASH_DIR)) {
+      await adapter.rmdir(TRASH_DIR, true);
     }
   }
 

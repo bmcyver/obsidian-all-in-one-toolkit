@@ -44,14 +44,7 @@
 
 ## Todos
 
-### 1. ejs를 활용한 템플릿 플러그인 개발.
-
-Templater의 핵심 기능을 가볍게 대체할 수 있는 ejs-manager?를 개발합니다.
-
-- regex를 기반으로 한 템플릿 우선순위 관리
-- 템플릿 해시를 저장 -> localStorage에도 저장 하여 템플릿 위변조 차단 (allow list된 템플릿만 이용 가능하도록)
-
-### 2. 이 플러그인 최적화
+### 1. 이 플러그인 최적화
 
 - 코드 가독성 향상
   - 일단 한 파일에 다 밀어 넣긴 했는데... 읽기 드럽기 때문에 리팩토링 필요
@@ -64,3 +57,4 @@ Templater의 핵심 기능을 가볍게 대체할 수 있는 ejs-manager?를 개
 - https://github.com/xryul/obsidian-image-converter
 - https://github.com/LostPaul/obsidian-folder-notes
 - https://github.com/flolu/obsidian-scroll-speed
+- https://github.com/silentvoid13/Templater

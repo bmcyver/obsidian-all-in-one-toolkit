@@ -3,6 +3,7 @@ import { ensureDirectoryExists, isValidPath } from '../utils/file';
 import { BaseManager } from './base';
 import { FolderSuggest } from '../ui/folder-suggest';
 import { DEFAULT_SETTINGS } from '../settings';
+import { showError, clearError } from '../utils/ui';
 
 const PATH_PATTERNS = {
   weekly: (folder: string, year: string, week: string) =>
@@ -11,6 +12,8 @@ const PATH_PATTERNS = {
     `${folder}/${year}/${month}/${month}.md`,
   yearly: (folder: string, year: string) => `${folder}/${year}/${year}.md`,
 };
+
+type NoteType = 'weekly' | 'monthly' | 'yearly';
 
 export class PeriodicNotesManager extends BaseManager {
   protected isEnabled(): boolean {
@@ -55,25 +58,19 @@ export class PeriodicNotesManager extends BaseManager {
     });
   }
 
-  private async getOrCreatePeriodicNote(
-    noteType: 'weekly' | 'monthly' | 'yearly',
-  ) {
+  private async getOrCreatePeriodicNote(noteType: NoteType) {
     const now = window.moment();
     const year = now.format('YYYY');
     const folder =
       this.plugin.settings.periodicNotesFolder ||
       DEFAULT_SETTINGS.periodicNotesFolder;
 
-    let fullPath: string;
-    if (noteType === 'weekly') {
-      const week = now.format('WW');
-      fullPath = PATH_PATTERNS.weekly(folder, year, week);
-    } else if (noteType === 'monthly') {
-      const month = now.format('MM');
-      fullPath = PATH_PATTERNS.monthly(folder, year, month);
-    } else {
-      fullPath = PATH_PATTERNS.yearly(folder, year);
-    }
+    const pathGenerator: Record<NoteType, () => string> = {
+      weekly: () => PATH_PATTERNS.weekly(folder, year, now.format('WW')),
+      monthly: () => PATH_PATTERNS.monthly(folder, year, now.format('MM')),
+      yearly: () => PATH_PATTERNS.yearly(folder, year),
+    };
+    const fullPath = pathGenerator[noteType]();
 
     let file = this.plugin.app.vault.getAbstractFileByPath(fullPath);
 
@@ -129,13 +126,13 @@ export class PeriodicNotesManager extends BaseManager {
         void (async () => {
           const trimmed = value.trim();
           if (!isValidPath(trimmed)) {
-            folderErrorEl.textContent =
-              '경로에 사용할 수 없는 문자가 포함되어 있습니다.';
-            folderErrorEl.removeClass('is-hidden');
+            showError(
+              folderErrorEl,
+              '경로에 사용할 수 없는 문자가 포함되어 있습니다.',
+            );
             return;
           }
-          folderErrorEl.addClass('is-hidden');
-          folderErrorEl.textContent = '';
+          clearError(folderErrorEl);
           this.plugin.settings.periodicNotesFolder = trimmed;
           await this.plugin.saveSettings();
         })();
