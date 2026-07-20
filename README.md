@@ -52,6 +52,14 @@
   - heic-decode가 현시점 필요한가?
     - 필요 없다면 선택형 빌드로..
 
+### 2. EJS 코드 하이라이팅 추가
+
+- 어떻게 잘 해보면 되지 않을까?
+
+### 3. 코드 리팩토링
+
+- Gemini 3.5 Pro가 해줄거임 ㅇㅇ..
+
 ## Credits
 
 - https://github.com/xryul/obsidian-image-converter

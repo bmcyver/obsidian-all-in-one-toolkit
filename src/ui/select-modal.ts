@@ -41,9 +41,11 @@ export class EjsSelectModal extends SuggestModal<string> {
 
   onClose() {
     super.onClose();
-    if (!this.submitted) {
-      // If closed without selection, resolve with an empty string
-      this.onSelect('');
-    }
+    window.setTimeout(() => {
+      if (!this.submitted) {
+        // If closed without selection, resolve with an empty string
+        this.onSelect('');
+      }
+    }, 100);
   }
 }
