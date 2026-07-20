@@ -1,6 +1,8 @@
 import { Plugin } from 'obsidian';
-import { DEFAULT_SETTINGS, AllInOneToolkitSettingTab } from './settings';
-import type { ToolkitSettings, EjsRule } from './settings';
+import { AllInOneToolkitSettingTab } from './settings';
+import type { ToolkitSettings } from './settings';
+import { migrateSettings } from './utils/settings-migrator';
+import { BaseManager } from './managers/base';
 import { PeriodicNotesManager } from './managers/periodic-notes';
 import { FolderNoteManager } from './managers/folder-notes';
 import { ImageConverterManager } from './managers/image-converter';
@@ -8,42 +10,22 @@ import { TrashManager } from './managers/trash-manager';
 import { ScrollManager } from './managers/scroll-manager';
 import { EjsManager } from './managers/ejs-manager';
 
-interface PluginManager {
-  onload(): void;
-  onunload(): void;
-}
-
 export default class AllInOneToolkitPlugin extends Plugin {
   declare settings: ToolkitSettings;
-  private managers: PluginManager[] = [];
-
-  // Expose managers if other parts need them (like TrashManagerModal)
-  periodicNotesManager!: PeriodicNotesManager;
-  folderNoteManager!: FolderNoteManager;
-  imageConverterManager!: ImageConverterManager;
-  trashManager!: TrashManager;
-  scrollManager!: ScrollManager;
-  ejsManager!: EjsManager;
+  public readonly managers: BaseManager[] = [];
 
   async onload() {
     await this.loadSettings();
 
-    // 1. Initialize Managers
-    this.periodicNotesManager = new PeriodicNotesManager(this);
-    this.folderNoteManager = new FolderNoteManager(this);
-    this.imageConverterManager = new ImageConverterManager(this);
-    this.trashManager = new TrashManager(this);
-    this.scrollManager = new ScrollManager(this);
-    this.ejsManager = new EjsManager(this);
-
-    this.managers = [
-      this.periodicNotesManager,
-      this.folderNoteManager,
-      this.imageConverterManager,
-      this.trashManager,
-      this.scrollManager,
-      this.ejsManager,
-    ];
+    // 1. Initialize and register Managers in the array directly
+    this.managers.push(
+      new PeriodicNotesManager(this),
+      new FolderNoteManager(this),
+      new ImageConverterManager(this),
+      new TrashManager(this),
+      new ScrollManager(this),
+      new EjsManager(this),
+    );
 
     // 2. Load all managers
     for (const manager of this.managers) {
@@ -61,29 +43,15 @@ export default class AllInOneToolkitPlugin extends Plugin {
     }
   }
 
-  async loadSettings() {
-    const data = (await this.loadData()) as {
-      webpQuality?: number;
-      quality?: number;
-      folderNoteExtension?: string;
-      defaultCreateExtension?: string;
-      scrollSpeed?: number;
-      ejsTemplatesFolder?: string;
-      ejsRules?: EjsRule[];
-    } | null;
+  getManager<T extends BaseManager>(
+    type: new (plugin: AllInOneToolkitPlugin) => T,
+  ): T | undefined {
+    return this.managers.find((m) => m instanceof type) as T | undefined;
+  }
 
-    this.settings = {
-      webpQuality:
-        data?.webpQuality ?? data?.quality ?? DEFAULT_SETTINGS.webpQuality,
-      folderNoteExtension:
-        data?.folderNoteExtension ??
-        data?.defaultCreateExtension ??
-        DEFAULT_SETTINGS.folderNoteExtension,
-      scrollSpeed: data?.scrollSpeed ?? DEFAULT_SETTINGS.scrollSpeed,
-      ejsTemplatesFolder:
-        data?.ejsTemplatesFolder ?? DEFAULT_SETTINGS.ejsTemplatesFolder,
-      ejsRules: data?.ejsRules ?? DEFAULT_SETTINGS.ejsRules,
-    };
+  async loadSettings() {
+    const data: unknown = await this.loadData();
+    this.settings = migrateSettings(data);
   }
 
   async saveSettings() {

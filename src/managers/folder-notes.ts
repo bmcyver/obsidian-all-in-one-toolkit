@@ -1,14 +1,20 @@
-import { TFolder, TFile, type WorkspaceLeaf, Notice } from 'obsidian';
+import { TFolder, TFile, type WorkspaceLeaf, Notice, Setting } from 'obsidian';
 import type AllInOneToolkitPlugin from '../main';
 import { splitFileName } from '../utils/file';
+import { BaseManager } from './base';
 
 export const SUPPORTED_EXTENSIONS = ['base', 'md', 'canvas'];
 
-export class FolderNoteManager {
-  private plugin: AllInOneToolkitPlugin;
+export class FolderNoteManager implements BaseManager {
+  plugin: AllInOneToolkitPlugin;
   private fileExplorerLeaves: WorkspaceLeaf[] = [];
   private observers: MutationObserver[] = [];
   private frameId: number | null = null;
+
+  private pendingFiles: Set<Element> = new Set();
+  private pendingFolders: Set<Element> = new Set();
+  private fullRefreshPending = false;
+  private pendingContainer: Element | null = null;
 
   constructor(plugin: AllInOneToolkitPlugin) {
     this.plugin = plugin;
@@ -103,15 +109,50 @@ export class FolderNoteManager {
       this.scheduleRefresh(container);
 
       const observer = new MutationObserver((mutations) => {
-        const shouldRefresh = mutations.some(
-          (m) =>
-            m.addedNodes.length > 0 ||
-            m.removedNodes.length > 0 ||
-            (m.type === 'attributes' && m.attributeName === 'data-path'),
-        );
+        let addedFiles: Element[] = [];
+        let addedFolders: Element[] = [];
+        let needFullRefresh = false;
 
-        if (shouldRefresh) {
+        for (const m of mutations) {
+          if (m.type === 'childList') {
+            m.addedNodes.forEach((node) => {
+              if (node.nodeType === 1) {
+                const element = node as Element;
+                if (element.classList.contains('nav-file')) {
+                  addedFiles.push(element);
+                } else if (element.classList.contains('nav-folder')) {
+                  addedFolders.push(element);
+                } else {
+                  element
+                    .querySelectorAll('.nav-file')
+                    .forEach((el) => addedFiles.push(el));
+                  element
+                    .querySelectorAll('.nav-folder')
+                    .forEach((el) => addedFolders.push(el));
+                }
+              }
+            });
+            if (m.removedNodes.length > 0) {
+              needFullRefresh = true;
+            }
+          } else if (
+            m.type === 'attributes' &&
+            m.attributeName === 'data-path'
+          ) {
+            if (m.target.nodeType === 1) {
+              const element = m.target as Element;
+              const fileEl = element.closest('.nav-file');
+              const folderEl = element.closest('.nav-folder');
+              if (fileEl) addedFiles.push(fileEl);
+              if (folderEl) addedFolders.push(folderEl);
+            }
+          }
+        }
+
+        if (needFullRefresh) {
           this.scheduleRefresh(container);
+        } else if (addedFiles.length > 0 || addedFolders.length > 0) {
+          this.scheduleRefresh(container, addedFiles, addedFolders);
         }
       });
 
@@ -125,10 +166,40 @@ export class FolderNoteManager {
     }
   }
 
-  private scheduleRefresh(container: Element) {
+  private scheduleRefresh(
+    container: Element,
+    targetFiles?: Iterable<Element>,
+    targetFolders?: Iterable<Element>,
+  ) {
+    this.pendingContainer = container;
+    if (targetFiles) {
+      for (const f of targetFiles) this.pendingFiles.add(f);
+    } else {
+      this.fullRefreshPending = true;
+    }
+    if (targetFolders) {
+      for (const f of targetFolders) this.pendingFolders.add(f);
+    } else {
+      this.fullRefreshPending = true;
+    }
+
     if (this.frameId !== null) return;
     this.frameId = window.requestAnimationFrame(() => {
-      this.refreshFolderStyles(container);
+      if (this.pendingContainer) {
+        if (this.fullRefreshPending) {
+          this.refreshFolderStyles(this.pendingContainer);
+        } else {
+          this.refreshFolderStyles(
+            this.pendingContainer,
+            this.pendingFiles,
+            this.pendingFolders,
+          );
+        }
+      }
+      this.pendingFiles.clear();
+      this.pendingFolders.clear();
+      this.fullRefreshPending = false;
+      this.pendingContainer = null;
       this.frameId = null;
     });
   }
@@ -186,8 +257,14 @@ export class FolderNoteManager {
     }
   }
 
-  private refreshFolderStyles(container: Element) {
-    const fileElements = container.querySelectorAll('.nav-file');
+  private refreshFolderStyles(
+    container: Element,
+    targetFiles?: Iterable<Element>,
+    targetFolders?: Iterable<Element>,
+  ) {
+    const fileElements = Array.from(
+      targetFiles ?? container.querySelectorAll('.nav-file'),
+    );
     fileElements.forEach((el) => {
       const titleEl = el.querySelector(':scope > .nav-file-title');
       if (!titleEl) return;
@@ -204,7 +281,9 @@ export class FolderNoteManager {
       }
     });
 
-    const folderElements = container.querySelectorAll('.nav-folder');
+    const folderElements = Array.from(
+      targetFolders ?? container.querySelectorAll('.nav-folder'),
+    );
     folderElements.forEach((el) => {
       const titleEl = el.querySelector(':scope > .nav-folder-title');
       if (!titleEl) return;
@@ -294,5 +373,25 @@ export class FolderNoteManager {
   async openFolderNote(file: TFile, newLeaf: boolean) {
     const leaf = this.plugin.app.workspace.getLeaf(newLeaf);
     await leaf.openFile(file);
+  }
+
+  renderSettings(containerEl: HTMLElement) {
+    new Setting(containerEl).setName('폴더 노트').setHeading();
+
+    new Setting(containerEl)
+      .setName('기본 생성 확장자')
+      .setDesc(
+        '폴더 노트를 새로 생성할 때 (Ctrl/Cmd + 클릭) 사용할 기본 파일 확장자를 선택합니다.',
+      )
+      .addDropdown((dropdown) => {
+        SUPPORTED_EXTENSIONS.forEach((ext) => {
+          dropdown.addOption(ext, `.${ext}`);
+        });
+        dropdown.setValue(this.plugin.settings.folderNoteExtension);
+        dropdown.onChange(async (value) => {
+          this.plugin.settings.folderNoteExtension = value;
+          await this.plugin.saveSettings();
+        });
+      });
   }
 }

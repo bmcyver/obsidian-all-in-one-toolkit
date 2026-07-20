@@ -1,6 +1,7 @@
 import type AllInOneToolkitPlugin from '../main';
 import { ensureDirectoryExists } from '../utils/file';
 import { TrashManagerModal } from '../ui/trash-modal';
+import { BaseManager } from './base';
 
 export interface TrashFile {
   path: string; // e.g. ".trash/folder/note.md"
@@ -10,8 +11,8 @@ export interface TrashFile {
   size: number;
 }
 
-export class TrashManager {
-  private plugin: AllInOneToolkitPlugin;
+export class TrashManager implements BaseManager {
+  plugin: AllInOneToolkitPlugin;
 
   constructor(plugin: AllInOneToolkitPlugin) {
     this.plugin = plugin;
@@ -109,5 +110,9 @@ export class TrashManager {
       counter++;
     }
     return path;
+  }
+
+  renderSettings(containerEl: HTMLElement) {
+    // No settings for TrashManager
   }
 }

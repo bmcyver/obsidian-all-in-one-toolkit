@@ -14,6 +14,7 @@ export default defineConfig(
     },
     rules: {
       'obsidianmd/ui/sentence-case': 'off',
+      'obsidianmd/settings-tab/prefer-setting-definitions': 'off',
     },
   },
   globalIgnores([

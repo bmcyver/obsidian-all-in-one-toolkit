@@ -207,20 +207,85 @@
 /* EJS Manager Styles */
 .ejs-rule-item {
   display: flex;
-  gap: 10px;
-  align-items: center;
-  margin-bottom: 10px;
+  flex-direction: column;
+  background-color: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+  gap: 12px;
 }
 
-.ejs-rule-item .setting-item {
-  border: none !important;
-  padding: 0 !important;
-  flex: 1 !important;
+.ejs-rule-fields {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.ejs-rule-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 200px;
+}
+
+.ejs-rule-label {
+  font-size: 0.9em;
+  font-weight: 600;
+  color: var(--text-normal);
+}
+
+.ejs-rule-field input[type="text"] {
+  width: 100%;
+}
+
+.ejs-rule-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid var(--background-modifier-border);
+  padding-top: 12px;
+  margin-top: 4px;
+}
+
+.ejs-rule-status-area {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ejs-rule-badge {
+  font-size: 0.8em;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.ejs-rule-badge.approved {
+  background-color: rgba(46, 125, 50, 0.15);
+  color: #4caf50;
+  border: 1px solid rgba(46, 125, 50, 0.3);
+}
+
+.ejs-rule-badge.pending {
+  background-color: rgba(239, 108, 0, 0.15);
+  color: #ff9800;
+  border: 1px solid rgba(239, 108, 0, 0.3);
+}
+
+.ejs-rule-badge.missing {
+  background-color: rgba(158, 158, 158, 0.15);
+  color: #9e9e9e;
+  border: 1px solid rgba(158, 158, 158, 0.3);
 }
 
 .ejs-rule-buttons {
   display: flex;
-  gap: 5px;
+  gap: 8px;
 }
 
 .ejs-security-info {
