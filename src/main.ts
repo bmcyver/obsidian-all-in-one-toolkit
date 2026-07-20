@@ -27,10 +27,12 @@ export default class AllInOneToolkitPlugin extends Plugin {
       new EjsManager(this),
     );
 
-    // 2. Load all managers
-    for (const manager of this.managers) {
-      manager.onload();
-    }
+    // 2. Load all managers when layout is ready
+    this.app.workspace.onLayoutReady(() => {
+      for (const manager of this.managers) {
+        manager.enable();
+      }
+    });
 
     // 3. Register settings tab
     this.addSettingTab(new AllInOneToolkitSettingTab(this.app, this));
@@ -39,7 +41,7 @@ export default class AllInOneToolkitPlugin extends Plugin {
   onunload() {
     // Unload all managers in reverse order
     for (const manager of this.managers.slice().reverse()) {
-      manager.onunload();
+      manager.disable();
     }
   }
 
@@ -56,5 +58,8 @@ export default class AllInOneToolkitPlugin extends Plugin {
 
   async saveSettings() {
     await this.saveData(this.settings);
+    for (const manager of this.managers) {
+      manager.onSettingsUpdate();
+    }
   }
 }

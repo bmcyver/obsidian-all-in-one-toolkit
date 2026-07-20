@@ -7,6 +7,31 @@ export function migrateSettings(data: unknown): ToolkitSettings {
     unknown
   >;
   return {
+    periodicNotesEnabled:
+      typeof d.periodicNotesEnabled === 'boolean'
+        ? d.periodicNotesEnabled
+        : DEFAULT_SETTINGS.periodicNotesEnabled,
+    folderNoteEnabled:
+      typeof d.folderNoteEnabled === 'boolean'
+        ? d.folderNoteEnabled
+        : DEFAULT_SETTINGS.folderNoteEnabled,
+    imageConverterEnabled:
+      typeof d.imageConverterEnabled === 'boolean'
+        ? d.imageConverterEnabled
+        : DEFAULT_SETTINGS.imageConverterEnabled,
+    trashManagerEnabled:
+      typeof d.trashManagerEnabled === 'boolean'
+        ? d.trashManagerEnabled
+        : DEFAULT_SETTINGS.trashManagerEnabled,
+    scrollEnabled:
+      typeof d.scrollEnabled === 'boolean'
+        ? d.scrollEnabled
+        : DEFAULT_SETTINGS.scrollEnabled,
+    ejsEnabled:
+      typeof d.ejsEnabled === 'boolean'
+        ? d.ejsEnabled
+        : DEFAULT_SETTINGS.ejsEnabled,
+
     webpQuality:
       typeof d.webpQuality === 'number'
         ? d.webpQuality
@@ -32,7 +57,17 @@ export function migrateSettings(data: unknown): ToolkitSettings {
         ? d.ejsTemplatesFolder
         : DEFAULT_SETTINGS.ejsTemplatesFolder,
     ejsRules: Array.isArray(d.ejsRules)
-      ? (d.ejsRules as ToolkitSettings['ejsRules'])
+      ? d.ejsRules.map((rule: unknown) => {
+          const r =
+            rule && typeof rule === 'object'
+              ? (rule as Record<string, unknown>)
+              : {};
+          return {
+            pattern: typeof r.pattern === 'string' ? r.pattern : '',
+            templatePath:
+              typeof r.templatePath === 'string' ? r.templatePath : '',
+          };
+        })
       : DEFAULT_SETTINGS.ejsRules,
     periodicNotesFolder:
       typeof d.periodicNotesFolder === 'string'

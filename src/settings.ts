@@ -2,12 +2,19 @@ import { App, PluginSettingTab } from 'obsidian';
 import type AllInOneToolkitPlugin from './main';
 
 export interface EjsRule {
-  id: string;
   pattern: string;
   templatePath: string;
 }
 
 export interface ToolkitSettings {
+  // Feature toggles
+  periodicNotesEnabled: boolean;
+  folderNoteEnabled: boolean;
+  imageConverterEnabled: boolean;
+  trashManagerEnabled: boolean;
+  scrollEnabled: boolean;
+  ejsEnabled: boolean;
+
   // Image converter
   webpQuality: number;
   imageStorePath: string;
@@ -23,13 +30,20 @@ export interface ToolkitSettings {
 }
 
 export const DEFAULT_SETTINGS: ToolkitSettings = {
+  periodicNotesEnabled: true,
+  folderNoteEnabled: true,
+  imageConverterEnabled: true,
+  trashManagerEnabled: true,
+  scrollEnabled: true,
+  ejsEnabled: true,
+
   webpQuality: 85,
-  imageStorePath: 'assets/YYYY',
+  imageStorePath: '[assets]/YYYY',
   folderNoteExtension: 'md',
   scrollSpeed: 1,
-  ejsTemplatesFolder: 'Templates/EJS',
+  ejsTemplatesFolder: 'Templates',
   ejsRules: [],
-  periodicNotesFolder: '40 - Periodic',
+  periodicNotesFolder: 'Periodic Notes',
 };
 
 export class AllInOneToolkitSettingTab extends PluginSettingTab {

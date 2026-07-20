@@ -1,4 +1,6 @@
 import { AbstractInputSuggest, type App, TFolder, TFile } from 'obsidian';
+import { DEFAULT_SETTINGS } from '../settings';
+import { stripFolderPrefix } from '../utils/file';
 
 export class FolderSuggest extends AbstractInputSuggest<TFolder> {
   private inputEl: HTMLInputElement;
@@ -50,7 +52,9 @@ export class FileSuggest extends AbstractInputSuggest<TFile> {
     const files = this.app.vault.getFiles();
     const suggestions: TFile[] = [];
     const lowerCaseInputStr = inputStr.toLowerCase();
-    const folderPath = (this.templateFolder || '90 - Templates').toLowerCase();
+    const folderPath = (
+      this.templateFolder || DEFAULT_SETTINGS.ejsTemplatesFolder
+    ).toLowerCase();
 
     for (const file of files) {
       if (!file.path.toLowerCase().startsWith(folderPath + '/')) continue;
@@ -67,20 +71,16 @@ export class FileSuggest extends AbstractInputSuggest<TFile> {
   }
 
   renderSuggestion(file: TFile, el: HTMLElement): void {
-    let displayPath = file.path;
-    const folderPath = this.templateFolder || '90 - Templates';
-    if (displayPath.toLowerCase().startsWith(folderPath.toLowerCase() + '/')) {
-      displayPath = displayPath.slice(folderPath.length + 1);
-    }
+    const folderPath =
+      this.templateFolder || DEFAULT_SETTINGS.ejsTemplatesFolder;
+    const displayPath = stripFolderPrefix(file.path, folderPath);
     el.setText(displayPath);
   }
 
   selectSuggestion(file: TFile): void {
-    let displayPath = file.path;
-    const folderPath = this.templateFolder || '90 - Templates';
-    if (displayPath.toLowerCase().startsWith(folderPath.toLowerCase() + '/')) {
-      displayPath = displayPath.slice(folderPath.length + 1);
-    }
+    const folderPath =
+      this.templateFolder || DEFAULT_SETTINGS.ejsTemplatesFolder;
+    const displayPath = stripFolderPrefix(file.path, folderPath);
     this.inputEl.value = displayPath;
     this.inputEl.dispatchEvent(new Event('input'));
     this.close();

@@ -71,3 +71,13 @@ export function formatBytes(bytes: number): string {
 export function isValidPath(path: string): boolean {
   return !/[*?"<>|:]/.test(path);
 }
+
+/**
+ * Strips the folder prefix from a display path if it starts with the specified folder.
+ */
+export function stripFolderPrefix(path: string, folder: string): string {
+  if (path.toLowerCase().startsWith(folder.toLowerCase() + '/')) {
+    return path.slice(folder.length + 1);
+  }
+  return path;
+}
