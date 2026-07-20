@@ -1,6 +1,5 @@
-import { Platform, Setting, TextComponent } from 'obsidian';
+import { Platform, Setting, TextComponent, type EventRef } from 'obsidian';
 import type { WorkspaceWindow } from 'obsidian';
-import type AllInOneToolkitPlugin from '../main';
 import { BaseManager } from './base';
 import { DEFAULT_SETTINGS } from '../settings';
 
@@ -10,9 +9,9 @@ interface AugmentedWheelEvent extends WheelEvent {
   wheelDeltaX?: number;
 }
 
-export class ScrollManager implements BaseManager {
-  plugin: AllInOneToolkitPlugin;
+export class ScrollManager extends BaseManager {
   private windows: Set<Window> = new Set();
+  private windowOpenRef: EventRef | null = null;
 
   private animationSmoothness = 3;
   private positionY = 0;
@@ -20,8 +19,8 @@ export class ScrollManager implements BaseManager {
   private target?: Element;
   private scrollDistance = 0;
 
-  constructor(plugin: AllInOneToolkitPlugin) {
-    this.plugin = plugin;
+  protected isEnabled(): boolean {
+    return this.plugin.settings.scrollEnabled;
   }
 
   onload() {
@@ -32,8 +31,9 @@ export class ScrollManager implements BaseManager {
     window.addEventListener('wheel', this.scrollListener, { passive: false });
     this.windows.add(window);
 
-    this.plugin.registerEvent(
-      this.plugin.app.workspace.on('window-open', this.windowOpenListener),
+    this.windowOpenRef = this.plugin.app.workspace.on(
+      'window-open',
+      this.windowOpenListener,
     );
   }
 
@@ -46,9 +46,15 @@ export class ScrollManager implements BaseManager {
       }
     }
     this.windows.clear();
+
+    if (this.windowOpenRef) {
+      this.plugin.app.workspace.offref(this.windowOpenRef);
+      this.windowOpenRef = null;
+    }
   }
 
   private windowOpenListener = (_win: WorkspaceWindow, win: Window) => {
+    if (!this.isEnabled()) return;
     win.addEventListener('wheel', this.scrollListener, { passive: false });
     this.windows.add(win);
 
@@ -65,6 +71,7 @@ export class ScrollManager implements BaseManager {
   };
 
   private scrollListener = (event: AugmentedWheelEvent) => {
+    if (!this.isEnabled()) return;
     event.preventDefault();
 
     const path =
@@ -200,19 +207,40 @@ export class ScrollManager implements BaseManager {
   }
 
   renderSettings(containerEl: HTMLElement) {
-    new Setting(containerEl).setName('스크롤 속도').setHeading();
+    new Setting(containerEl)
+      .setName('마우스 스크롤 속도 조절')
+      .setHeading()
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.scrollEnabled)
+          .onChange(async (value) => {
+            this.plugin.settings.scrollEnabled = value;
+            await this.plugin.saveSettings();
+            detailEl.style.display = value ? '' : 'none';
+          });
+      });
+
+    const detailEl = containerEl.createDiv();
+    detailEl.style.display = this.plugin.settings.scrollEnabled ? '' : 'none';
 
     let scrollSpeedText: TextComponent;
-    new Setting(containerEl)
+    const speedSetting = new Setting(detailEl)
       .setName('마우스 스크롤 속도')
-      .setDesc(
-        '마우스 휠 스크롤 속도를 조절합니다 (0.05 ~ 2). 기본값은 1입니다.',
-      )
+      .setDesc('마우스 휠 스크롤 속도를 조절합니다 (0.05 ~ 2).');
+    speedSetting.settingEl.addClass('has-error-container');
+
+    const speedErrorEl = speedSetting.settingEl.createDiv({
+      cls: 'setting-item-error is-hidden',
+    });
+
+    speedSetting
       .addExtraButton((button) => {
         button
           .setIcon('reset')
           .setTooltip('기본값 복원')
           .onClick(async () => {
+            speedErrorEl.addClass('is-hidden');
+            speedErrorEl.textContent = '';
             this.plugin.settings.scrollSpeed = DEFAULT_SETTINGS.scrollSpeed;
             scrollSpeedText.setValue(String(DEFAULT_SETTINGS.scrollSpeed));
             await this.plugin.saveSettings();
@@ -225,12 +253,25 @@ export class ScrollManager implements BaseManager {
         text.inputEl.max = '2';
         text.inputEl.step = '0.05';
         text.setValue(String(this.plugin.settings.scrollSpeed));
-        text.onChange(async (value) => {
-          let num = parseFloat(value);
-          if (isNaN(num)) return;
-          num = Math.max(0.05, Math.min(2, num));
-          this.plugin.settings.scrollSpeed = num;
-          await this.plugin.saveSettings();
+        text.onChange((value) => {
+          void (async () => {
+            const num = parseFloat(value);
+            if (value.trim() === '' || isNaN(num)) {
+              speedErrorEl.textContent = '숫자를 입력해 주세요.';
+              speedErrorEl.removeClass('is-hidden');
+              return;
+            }
+            if (num < 0.05 || num > 2) {
+              speedErrorEl.textContent =
+                '스크롤 속도는 0.05에서 2 사이의 숫자여야 합니다.';
+              speedErrorEl.removeClass('is-hidden');
+              return;
+            }
+            speedErrorEl.addClass('is-hidden');
+            speedErrorEl.textContent = '';
+            this.plugin.settings.scrollSpeed = num;
+            await this.plugin.saveSettings();
+          })();
         });
       });
   }

@@ -1,4 +1,4 @@
-import type AllInOneToolkitPlugin from '../main';
+import { Setting } from 'obsidian';
 import { ensureDirectoryExists } from '../utils/file';
 import { TrashManagerModal } from '../ui/trash-modal';
 import { BaseManager } from './base';
@@ -11,25 +11,23 @@ export interface TrashFile {
   size: number;
 }
 
-export class TrashManager implements BaseManager {
-  plugin: AllInOneToolkitPlugin;
-
-  constructor(plugin: AllInOneToolkitPlugin) {
-    this.plugin = plugin;
+export class TrashManager extends BaseManager {
+  protected isEnabled(): boolean {
+    return this.plugin.settings.trashManagerEnabled;
   }
 
   onload() {
     this.plugin.addCommand({
       id: 'open-trash-manager',
       name: '휴지통 관리자 열기',
-      callback: () => {
-        new TrashManagerModal(this.plugin.app, this.plugin).open();
+      checkCallback: (checking) => {
+        if (!this.isEnabled()) return false;
+        if (!checking) {
+          new TrashManagerModal(this.plugin.app, this.plugin).open();
+        }
+        return true;
       },
     });
-  }
-
-  onunload() {
-    // Lifecycle cleanup placeholder
   }
 
   /**
@@ -113,6 +111,16 @@ export class TrashManager implements BaseManager {
   }
 
   renderSettings(containerEl: HTMLElement) {
-    // No settings for TrashManager
+    new Setting(containerEl)
+      .setName('휴지통 관리자')
+      .setHeading()
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.trashManagerEnabled)
+          .onChange(async (value) => {
+            this.plugin.settings.trashManagerEnabled = value;
+            await this.plugin.saveSettings();
+          });
+      });
   }
 }

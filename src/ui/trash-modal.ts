@@ -3,7 +3,7 @@ import type AllInOneToolkitPlugin from '../main';
 import { TrashManager, type TrashFile } from '../managers/trash-manager';
 import { formatBytes } from '../utils/file';
 
-export class TrashEmptyConfirmModal extends Modal {
+class TrashEmptyConfirmModal extends Modal {
   private onConfirm: () => void;
 
   constructor(app: App, onConfirm: () => void) {

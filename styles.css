@@ -205,87 +205,151 @@
 }
 
 /* EJS Manager Styles */
+.ejs-rules-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
 .ejs-rule-item {
   display: flex;
   flex-direction: column;
   background-color: var(--background-secondary);
   border: 1px solid var(--background-modifier-border);
   border-radius: 8px;
-  padding: 16px;
-  margin-bottom: 16px;
+  padding: 8px 16px;
+  gap: 0px;
+}
+
+.ejs-rule-main-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  width: 100%;
   gap: 12px;
 }
 
-.ejs-rule-fields {
+.ejs-rule-error-msg {
+  color: var(--text-error);
+  font-size: 0.85em;
+  width: 100% !important;
+  flex-basis: 100%;
+  margin-top: 8px;
+  margin-bottom: 2px;
+  padding-left: 36px;
+}
+
+.ejs-rule-pattern-input {
+  flex: 1 1 35%;
+  height: 36px;
+}
+
+.ejs-template-path-wrapper {
+  position: relative;
+  flex: 1 1 45%;
   display: flex;
-  gap: 16px;
-  flex-wrap: wrap;
-  width: 100%;
-}
-
-.ejs-rule-field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  flex: 1;
-  min-width: 200px;
-}
-
-.ejs-rule-label {
-  font-size: 0.9em;
-  font-weight: 600;
-  color: var(--text-normal);
-}
-
-.ejs-rule-field input[type="text"] {
-  width: 100%;
-}
-
-.ejs-rule-footer {
-  display: flex;
-  justify-content: space-between;
   align-items: center;
-  border-top: 1px solid var(--background-modifier-border);
-  padding-top: 12px;
-  margin-top: 4px;
+}
+
+.ejs-template-path-wrapper input {
+  width: 100%;
+  height: 36px;
+  padding-left: 36px;
+  padding-right: 12px;
+}
+
+.ejs-template-path-icon {
+  position: absolute;
+  left: 10px;
+  color: var(--text-muted);
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+}
+
+.ejs-template-path-icon svg {
+  width: 16px;
+  height: 16px;
 }
 
 .ejs-rule-status-area {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
-.ejs-rule-badge {
-  font-size: 0.8em;
-  font-weight: 600;
-  padding: 4px 8px;
-  border-radius: 4px;
+.ejs-rule-status-icon {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  background: none !important;
+  border: none !important;
 }
 
-.ejs-rule-badge.approved {
-  background-color: rgba(46, 125, 50, 0.15);
+.ejs-rule-status-icon.approved {
   color: #4caf50;
-  border: 1px solid rgba(46, 125, 50, 0.3);
 }
 
-.ejs-rule-badge.pending {
-  background-color: rgba(239, 108, 0, 0.15);
+.ejs-rule-status-icon.pending {
   color: #ff9800;
-  border: 1px solid rgba(239, 108, 0, 0.3);
 }
 
-.ejs-rule-badge.missing {
-  background-color: rgba(158, 158, 158, 0.15);
-  color: #9e9e9e;
-  border: 1px solid rgba(158, 158, 158, 0.3);
+.ejs-rule-status-icon.missing {
+  color: #f44336;
 }
 
-.ejs-rule-buttons {
+.ejs-rule-status-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.ejs-rule-controls {
   display: flex;
-  gap: 8px;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  margin-left: auto !important;
+}
+
+.ejs-rule-btn {
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 6px !important;
+  border-radius: 4px !important;
+  color: var(--text-muted) !important;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.ejs-rule-btn:hover {
+  background-color: var(--background-modifier-hover) !important;
+  color: var(--text-normal) !important;
+}
+
+.ejs-rule-btn.delete-btn:hover {
+  color: var(--text-error) !important;
+}
+
+.ejs-rule-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.btn-approve-quick {
+  font-size: 0.75em;
+  padding: 3px 6px;
+  height: auto;
 }
 
 .ejs-security-info {
@@ -303,4 +367,26 @@
   border: none !important;
   padding: 0 !important;
   margin-bottom: 20px !important;
+}
+
+.ejs-rules-header {
+  border-top: 1px solid var(--background-modifier-border);
+  padding-top: 1.5em;
+}
+
+.is-hidden {
+  display: none !important;
+}
+
+.setting-item-error {
+  color: var(--text-error);
+  font-size: 0.85em;
+  margin-top: 8px;
+  width: 100% !important;
+  flex-basis: 100%;
+  text-align: right;
+}
+
+.setting-item.has-error-container {
+  flex-wrap: wrap !important;
 }

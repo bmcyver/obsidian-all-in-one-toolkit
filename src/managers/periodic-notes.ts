@@ -1,8 +1,8 @@
-import { TFile, Setting, Notice } from 'obsidian';
-import type AllInOneToolkitPlugin from '../main';
+import { TFile, Setting } from 'obsidian';
 import { ensureDirectoryExists, isValidPath } from '../utils/file';
 import { BaseManager } from './base';
 import { FolderSuggest } from '../ui/folder-suggest';
+import { DEFAULT_SETTINGS } from '../settings';
 
 const PATH_PATTERNS = {
   weekly: (folder: string, year: string, week: string) =>
@@ -12,41 +12,47 @@ const PATH_PATTERNS = {
   yearly: (folder: string, year: string) => `${folder}/${year}/${year}.md`,
 };
 
-export class PeriodicNotesManager implements BaseManager {
-  plugin: AllInOneToolkitPlugin;
-
-  constructor(plugin: AllInOneToolkitPlugin) {
-    this.plugin = plugin;
+export class PeriodicNotesManager extends BaseManager {
+  protected isEnabled(): boolean {
+    return this.plugin.settings.periodicNotesEnabled;
   }
 
   onload() {
     this.plugin.addCommand({
       id: 'create-weekly-note',
       name: '주간 노트 열기',
-      callback: () => {
-        void this.getOrCreatePeriodicNote('weekly');
+      checkCallback: (checking) => {
+        if (!this.isEnabled()) return false;
+        if (!checking) {
+          void this.getOrCreatePeriodicNote('weekly');
+        }
+        return true;
       },
     });
 
     this.plugin.addCommand({
       id: 'create-monthly-note',
       name: '월간 노트 열기',
-      callback: () => {
-        void this.getOrCreatePeriodicNote('monthly');
+      checkCallback: (checking) => {
+        if (!this.isEnabled()) return false;
+        if (!checking) {
+          void this.getOrCreatePeriodicNote('monthly');
+        }
+        return true;
       },
     });
 
     this.plugin.addCommand({
       id: 'create-yearly-note',
       name: '연간 노트 열기',
-      callback: () => {
-        void this.getOrCreatePeriodicNote('yearly');
+      checkCallback: (checking) => {
+        if (!this.isEnabled()) return false;
+        if (!checking) {
+          void this.getOrCreatePeriodicNote('yearly');
+        }
+        return true;
       },
     });
-  }
-
-  onunload() {
-    // No-op for now, but provides consistent lifecycle method
   }
 
   private async getOrCreatePeriodicNote(
@@ -54,7 +60,9 @@ export class PeriodicNotesManager implements BaseManager {
   ) {
     const now = window.moment();
     const year = now.format('YYYY');
-    const folder = this.plugin.settings.periodicNotesFolder || '40 - Periodic';
+    const folder =
+      this.plugin.settings.periodicNotesFolder ||
+      DEFAULT_SETTINGS.periodicNotesFolder;
 
     let fullPath: string;
     if (noteType === 'weekly') {
@@ -85,25 +93,53 @@ export class PeriodicNotesManager implements BaseManager {
   }
 
   renderSettings(containerEl: HTMLElement) {
-    new Setting(containerEl).setName('주기적 노트').setHeading();
-
     new Setting(containerEl)
+      .setName('주기적 노트')
+      .setHeading()
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.periodicNotesEnabled)
+          .onChange(async (value) => {
+            this.plugin.settings.periodicNotesEnabled = value;
+            await this.plugin.saveSettings();
+            detailEl.style.display = value ? '' : 'none';
+          });
+      });
+
+    const detailEl = containerEl.createDiv();
+    detailEl.style.display = this.plugin.settings.periodicNotesEnabled
+      ? ''
+      : 'none';
+
+    const folderSetting = new Setting(detailEl)
       .setName('주기적 노트 저장 폴더')
       .setDesc(
-        '주기적 노트(주간/월간/연간)가 생성 및 저장될 폴더 경로를 설정합니다 (예: 40 - Periodic).',
-      )
-      .addText((text) => {
-        new FolderSuggest(this.plugin.app, text.inputEl);
-        text.setValue(this.plugin.settings.periodicNotesFolder || '');
-        text.onChange(async (value) => {
+        '주기적 노트(주간/월간/연간)가 생성 및 저장될 폴더 경로를 설정합니다.',
+      );
+    folderSetting.settingEl.addClass('has-error-container');
+
+    const folderErrorEl = folderSetting.settingEl.createDiv({
+      cls: 'setting-item-error is-hidden',
+    });
+
+    folderSetting.addText((text) => {
+      new FolderSuggest(this.plugin.app, text.inputEl);
+      text.setValue(this.plugin.settings.periodicNotesFolder || '');
+      text.onChange((value) => {
+        void (async () => {
           const trimmed = value.trim();
           if (!isValidPath(trimmed)) {
-            new Notice('경로에 사용할 수 없는 문자가 포함되어 있습니다.');
+            folderErrorEl.textContent =
+              '경로에 사용할 수 없는 문자가 포함되어 있습니다.';
+            folderErrorEl.removeClass('is-hidden');
             return;
           }
+          folderErrorEl.addClass('is-hidden');
+          folderErrorEl.textContent = '';
           this.plugin.settings.periodicNotesFolder = trimmed;
           await this.plugin.saveSettings();
-        });
+        })();
       });
+    });
   }
 }

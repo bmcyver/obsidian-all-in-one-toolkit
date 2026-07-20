@@ -1,12 +1,10 @@
 import { TFolder, TFile, type WorkspaceLeaf, Notice, Setting } from 'obsidian';
-import type AllInOneToolkitPlugin from '../main';
 import { splitFileName } from '../utils/file';
 import { BaseManager } from './base';
 
 export const SUPPORTED_EXTENSIONS = ['base', 'md', 'canvas'];
 
-export class FolderNoteManager implements BaseManager {
-  plugin: AllInOneToolkitPlugin;
+export class FolderNoteManager extends BaseManager {
   private fileExplorerLeaves: WorkspaceLeaf[] = [];
   private observers: MutationObserver[] = [];
   private frameId: number | null = null;
@@ -16,17 +14,25 @@ export class FolderNoteManager implements BaseManager {
   private fullRefreshPending = false;
   private pendingContainer: Element | null = null;
 
-  constructor(plugin: AllInOneToolkitPlugin) {
-    this.plugin = plugin;
+  protected isEnabled(): boolean {
+    return this.plugin.settings.folderNoteEnabled;
+  }
+
+  onSettingsUpdate() {
+    super.onSettingsUpdate();
+    this.triggerStyleRefresh();
   }
 
   onload() {
     this.plugin.app.workspace.onLayoutReady(() => {
+      if (!this.isEnabled()) return;
       this.bindObservers();
       this.plugin.registerEvent(
-        this.plugin.app.workspace.on('layout-change', () =>
-          this.bindObservers(),
-        ),
+        this.plugin.app.workspace.on('layout-change', () => {
+          if (this.isEnabled()) {
+            this.bindObservers();
+          }
+        }),
       );
     });
 
@@ -37,6 +43,7 @@ export class FolderNoteManager implements BaseManager {
 
     this.plugin.registerEvent(
       this.plugin.app.workspace.on('file-menu', (menu, folder) => {
+        if (!this.isEnabled()) return;
         if (!(folder instanceof TFolder)) return;
 
         const noteFile = this.getFolderNoteFile(folder.path);
@@ -69,6 +76,10 @@ export class FolderNoteManager implements BaseManager {
       window.cancelAnimationFrame(this.frameId);
     }
     this.clearFolderStyles();
+  }
+
+  private normalizeFolderPath(path: string): string {
+    return path === '/' ? '' : path;
   }
 
   private clearFolderStyles() {
@@ -205,6 +216,7 @@ export class FolderNoteManager implements BaseManager {
   }
 
   private onClick = (evt: MouseEvent) => {
+    if (!this.isEnabled()) return;
     const target = evt.target as HTMLElement;
 
     // File Explorer clicks
@@ -228,7 +240,7 @@ export class FolderNoteManager implements BaseManager {
     const path = titleEl.getAttribute('data-path');
     if (!path) return;
 
-    const folderPath = path === '/' ? '' : path;
+    const folderPath = this.normalizeFolderPath(path);
     const folder = this.plugin.app.vault.getAbstractFileByPath(
       folderPath || '/',
     );
@@ -247,6 +259,11 @@ export class FolderNoteManager implements BaseManager {
   }
 
   triggerStyleRefresh() {
+    // If disabled, just clear folder styles and return
+    if (!this.isEnabled()) {
+      this.clearFolderStyles();
+      return;
+    }
     for (const leaf of this.fileExplorerLeaves) {
       const container = leaf.view.containerEl.querySelector(
         '.nav-files-container',
@@ -262,6 +279,9 @@ export class FolderNoteManager implements BaseManager {
     targetFiles?: Iterable<Element>,
     targetFolders?: Iterable<Element>,
   ) {
+    if (!this.isEnabled()) {
+      return;
+    }
     const fileElements = Array.from(
       targetFiles ?? container.querySelectorAll('.nav-file'),
     );
@@ -290,7 +310,7 @@ export class FolderNoteManager implements BaseManager {
 
       const path = titleEl.getAttribute('data-path');
       if (path === null) return;
-      const normalizedPath = path === '/' ? '' : path;
+      const normalizedPath = this.normalizeFolderPath(path);
 
       const hasNote = this.getFolderNoteFile(normalizedPath) !== null;
       const hasClass = titleEl.classList.contains('has-folder-note');
@@ -320,7 +340,7 @@ export class FolderNoteManager implements BaseManager {
   }
 
   getFolderNoteFile(folderPath: string): TFile | null {
-    const normalized = folderPath === '/' ? '' : folderPath;
+    const normalized = this.normalizeFolderPath(folderPath);
     const folder = this.plugin.app.vault.getAbstractFileByPath(
       normalized || '/',
     );
@@ -339,7 +359,7 @@ export class FolderNoteManager implements BaseManager {
   }
 
   async createNewFolderNote(folderPath: string) {
-    const normalized = folderPath === '/' ? '' : folderPath;
+    const normalized = this.normalizeFolderPath(folderPath);
     const folder = this.plugin.app.vault.getAbstractFileByPath(
       normalized || '/',
     );
@@ -376,12 +396,28 @@ export class FolderNoteManager implements BaseManager {
   }
 
   renderSettings(containerEl: HTMLElement) {
-    new Setting(containerEl).setName('폴더 노트').setHeading();
-
     new Setting(containerEl)
+      .setName('폴더 노트')
+      .setHeading()
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.folderNoteEnabled)
+          .onChange(async (value) => {
+            this.plugin.settings.folderNoteEnabled = value;
+            await this.plugin.saveSettings();
+            detailEl.style.display = value ? '' : 'none';
+          });
+      });
+
+    const detailEl = containerEl.createDiv();
+    detailEl.style.display = this.plugin.settings.folderNoteEnabled
+      ? ''
+      : 'none';
+
+    new Setting(detailEl)
       .setName('기본 생성 확장자')
       .setDesc(
-        '폴더 노트를 새로 생성할 때 (Ctrl/Cmd + 클릭) 사용할 기본 파일 확장자를 선택합니다.',
+        '폴더 노트를 새로 생성할 때 사용할 기본 파일 확장자를 선택합니다.',
       )
       .addDropdown((dropdown) => {
         SUPPORTED_EXTENSIONS.forEach((ext) => {
