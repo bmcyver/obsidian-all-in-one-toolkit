@@ -203,3 +203,39 @@
     gap: 4px;
   }
 }
+
+/* EJS Manager Styles */
+.ejs-rule-item {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.ejs-rule-item .setting-item {
+  border: none !important;
+  padding: 0 !important;
+  flex: 1 !important;
+}
+
+.ejs-rule-buttons {
+  display: flex;
+  gap: 5px;
+}
+
+.ejs-security-info {
+  background-color: var(--background-secondary);
+  padding: 12px;
+  border-radius: 4px;
+  margin-bottom: 20px;
+}
+
+.ejs-security-info-hash {
+  margin-top: 5px;
+}
+
+.ejs-prompt-setting {
+  border: none !important;
+  padding: 0 !important;
+  margin-bottom: 20px !important;
+}

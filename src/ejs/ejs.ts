@@ -34,8 +34,18 @@ const _DEFAULT_CLOSE_DELIMITER = '>';
 const _DEFAULT_DELIMITER = '%';
 const _DEFAULT_LOCALS_NAME = 'locals';
 const _REGEX_STRING = '(<%%|%%>|<%=|<%-|<%_|<%#|<%|%>|-%>|_%>)';
-const _OPTS_PASSABLE_WITH_DATA = ['delimiter', 'scope', 'context', 'debug', 'compileDebug',
-  '_with', 'rmWhitespace', 'strict', 'filename', 'async'];
+const _OPTS_PASSABLE_WITH_DATA = [
+  'delimiter',
+  'scope',
+  'context',
+  'debug',
+  'compileDebug',
+  '_with',
+  'rmWhitespace',
+  'strict',
+  'filename',
+  'async',
+];
 const _JS_IDENTIFIER = /^[a-zA-Z_$][0-9a-zA-Z_$]*$/;
 
 export interface Options {
@@ -69,13 +79,18 @@ export interface Cache {
 }
 
 export type TemplateFunction = (data?: Record<string, any>) => string;
-export type AsyncTemplateFunction = (data?: Record<string, any>) => Promise<string>;
+export type AsyncTemplateFunction = (
+  data?: Record<string, any>,
+) => Promise<string>;
 
 /**
  * Get the template from a string or a file, either compiled on-the-fly or
  * read from cache (if enabled), and cache the template if needed.
  */
-function handleCache(options: Options, template?: string): TemplateFunction | AsyncTemplateFunction {
+function handleCache(
+  options: Options,
+  template?: string,
+): TemplateFunction | AsyncTemplateFunction {
   let func;
   const filename = options.filename;
   const hasTemplate = arguments.length > 1;
@@ -102,31 +117,35 @@ function handleCache(options: Options, template?: string): TemplateFunction | As
  * Re-throw the given `err` in context to the `str` of ejs, `filename`, and
  * `lineno`.
  */
-function rethrow(err: Error & { path?: string }, str: string, flnm: string, lineno: number, esc: (markup: any) => string) {
+function rethrow(
+  err: Error & { path?: string },
+  str: string,
+  flnm: string,
+  lineno: number,
+  esc: (markup: any) => string,
+) {
   const lines = str.split('\n');
   const start = Math.max(lineno - 3, 0);
   const end = Math.min(lines.length, lineno + 3);
   const filename = esc(flnm);
   // Error context
-  const context = lines.slice(start, end).map(function (line, i){
-    const curr = i + start + 1;
-    return (curr === lineno ? ' >> ' : '    ')
-      + curr
-      + '| '
-      + line;
-  }).join('\n');
+  const context = lines
+    .slice(start, end)
+    .map(function (line, i) {
+      const curr = i + start + 1;
+      return (curr === lineno ? ' >> ' : '    ') + curr + '| ' + line;
+    })
+    .join('\n');
 
   // Alter exception message
   err.path = filename;
-  err.message = (filename || 'ejs') + ':'
-    + lineno + '\n'
-    + context + '\n\n'
-    + err.message;
+  err.message =
+    (filename || 'ejs') + ':' + lineno + '\n' + context + '\n\n' + err.message;
 
   throw err;
 }
 
-function stripSemi(str: string){
+function stripSemi(str: string) {
   return str.replace(/;(\s*$)/, '$1');
 }
 
@@ -140,7 +159,7 @@ export class Template {
     ESCAPED: 'escaped',
     RAW: 'raw',
     COMMENT: 'comment',
-    LITERAL: 'literal'
+    LITERAL: 'literal',
   } as const;
 
   templateText: string;
@@ -155,29 +174,33 @@ export class Template {
     const opts = utils.hasOwnOnlyObject(optsParam || {});
     const options = utils.createNullProtoObjWherePossible();
     this.templateText = text;
-    
-    options.escapeFunction = opts.escape || opts.escapeFunction || utils.escapeXML;
+
+    options.escapeFunction =
+      opts.escape || opts.escapeFunction || utils.escapeXML;
     options.compileDebug = opts.compileDebug !== false;
     options.debug = !!opts.debug;
     options.filename = opts.filename;
-    options.openDelimiter = opts.openDelimiter || ejs.openDelimiter || _DEFAULT_OPEN_DELIMITER;
-    options.closeDelimiter = opts.closeDelimiter || ejs.closeDelimiter || _DEFAULT_CLOSE_DELIMITER;
+    options.openDelimiter =
+      opts.openDelimiter || ejs.openDelimiter || _DEFAULT_OPEN_DELIMITER;
+    options.closeDelimiter =
+      opts.closeDelimiter || ejs.closeDelimiter || _DEFAULT_CLOSE_DELIMITER;
     options.delimiter = opts.delimiter || ejs.delimiter || _DEFAULT_DELIMITER;
     options.strict = opts.strict || false;
     options.context = opts.context;
     options.cache = opts.cache || false;
     options.rmWhitespace = opts.rmWhitespace;
     options.outputFunctionName = opts.outputFunctionName;
-    options.localsName = opts.localsName || ejs.localsName || _DEFAULT_LOCALS_NAME;
+    options.localsName =
+      opts.localsName || ejs.localsName || _DEFAULT_LOCALS_NAME;
     options.async = opts.async;
     options.destructuredLocals = opts.destructuredLocals;
-    options.legacyInclude = typeof opts.legacyInclude !== 'undefined' ? !!opts.legacyInclude : true;
+    options.legacyInclude =
+      typeof opts.legacyInclude !== 'undefined' ? !!opts.legacyInclude : true;
     options.unsafePrototypeLocals = !!opts.unsafePrototypeLocals;
 
     if (options.strict) {
       options._with = false;
-    }
-    else {
+    } else {
       options._with = typeof opts._with !== 'undefined' ? opts._with : true;
     }
 
@@ -191,9 +214,7 @@ export class Template {
     const delim = utils.escapeRegExpChars(this.opts.delimiter);
     const open = utils.escapeRegExpChars(this.opts.openDelimiter);
     const close = utils.escapeRegExpChars(this.opts.closeDelimiter);
-    str = str.replace(/%/g, delim)
-      .replace(/</g, open)
-      .replace(/>/g, close);
+    str = str.replace(/%/g, delim).replace(/</g, open).replace(/>/g, close);
     return new RegExp(str);
   }
 
@@ -205,7 +226,9 @@ export class Template {
     let appended = '';
     const escapeFn = opts.escapeFunction!;
     let ctor: any;
-    const sanitizedFilename = opts.filename ? JSON.stringify(opts.filename) : 'undefined';
+    const sanitizedFilename = opts.filename
+      ? JSON.stringify(opts.filename)
+      : 'undefined';
 
     if (!this.source) {
       this.generateSource();
@@ -216,17 +239,26 @@ export class Template {
         if (!_JS_IDENTIFIER.test(opts.outputFunctionName)) {
           throw new Error('outputFunctionName is not a valid JS identifier.');
         }
-        prepended += `  ${DECLARATION_KEYWORD} ` + opts.outputFunctionName + ' = __append;' + '\n';
+        prepended +=
+          `  ${DECLARATION_KEYWORD} ` +
+          opts.outputFunctionName +
+          ' = __append;' +
+          '\n';
       }
       if (opts.localsName && !_JS_IDENTIFIER.test(opts.localsName)) {
         throw new Error('localsName is not a valid JS identifier.');
       }
       if (opts.destructuredLocals && opts.destructuredLocals.length) {
-        let destructuring = `  ${DECLARATION_KEYWORD} __locals = (` + opts.localsName + ' || {}),\n';
+        let destructuring =
+          `  ${DECLARATION_KEYWORD} __locals = (` +
+          opts.localsName +
+          ' || {}),\n';
         for (let i = 0; i < opts.destructuredLocals.length; i++) {
           const name = opts.destructuredLocals[i]!;
           if (!_JS_IDENTIFIER.test(name)) {
-            throw new Error('destructuredLocals[' + i + '] is not a valid JS identifier.');
+            throw new Error(
+              'destructuredLocals[' + i + '] is not a valid JS identifier.',
+            );
           }
           if (i > 0) {
             destructuring += ',\n  ';
@@ -236,7 +268,7 @@ export class Template {
         prepended += destructuring + ';\n';
       }
       if (opts._with !== false) {
-        prepended +=  '  with (' + opts.localsName + ' || {}) {' + '\n';
+        prepended += '  with (' + opts.localsName + ' || {}) {' + '\n';
         appended += '  }' + '\n';
       }
       appended += '  return __output;' + '\n';
@@ -244,16 +276,26 @@ export class Template {
     }
 
     if (opts.compileDebug) {
-      src = `${DECLARATION_KEYWORD} __line = 1` + '\n'
-        + '  , __lines = ' + JSON.stringify(this.templateText) + '\n'
-        + '  , __filename = ' + sanitizedFilename + ';' + '\n'
-        + 'try {' + '\n'
-        + this.source
-        + '} catch (e) {' + '\n'
-        + '  rethrow(e as Error, __lines, __filename, __line, escapeFn);' + '\n'
-        + '}' + '\n';
-    }
-    else {
+      src =
+        `${DECLARATION_KEYWORD} __line = 1` +
+        '\n' +
+        '  , __lines = ' +
+        JSON.stringify(this.templateText) +
+        '\n' +
+        '  , __filename = ' +
+        sanitizedFilename +
+        ';' +
+        '\n' +
+        'try {' +
+        '\n' +
+        this.source +
+        '} catch (e) {' +
+        '\n' +
+        '  rethrow(e as Error, __lines, __filename, __line, escapeFn);' +
+        '\n' +
+        '}' +
+        '\n';
+    } else {
       src = this.source;
     }
 
@@ -264,8 +306,7 @@ export class Template {
       console.log(src);
     }
     if (opts.compileDebug && opts.filename) {
-      src = src + '\n'
-        + '//# sourceURL=' + sanitizedFilename + '\n';
+      src = src + '\n' + '//# sourceURL=' + sanitizedFilename + '\n';
     }
 
     try {
@@ -273,34 +314,32 @@ export class Template {
         // Have to use generated function for this, since in envs without support,
         // it breaks in parsing
         try {
-          ctor = (new Function('return (async function(){}).constructor;'))();
-        }
-        catch(e) {
+          ctor = new Function('return (async function(){}).constructor;')();
+        } catch (e) {
           if (e instanceof SyntaxError) {
             throw new Error('This environment does not support async/await');
-          }
-          else {
+          } else {
             throw e;
           }
         }
-      }
-      else {
+      } else {
         ctor = Function;
       }
       fn = new ctor(opts.localsName + ', escapeFn, include, rethrow', src);
-    }
-    catch(e: any) {
+    } catch (e: any) {
       // istanbul ignore else
       if (e instanceof SyntaxError) {
         if (opts.filename) {
           e.message += ' in ' + opts.filename;
         }
         e.message += ' while compiling ejs\n\n';
-        e.message += 'If the above error is not helpful, you may want to try EJS-Lint:\n';
+        e.message +=
+          'If the above error is not helpful, you may want to try EJS-Lint:\n';
         e.message += 'https://github.com/RyanZim/EJS-Lint';
         if (!opts.async) {
           e.message += '\n';
-          e.message += 'Or, if you meant to create an async function, pass `async: true` as an option.';
+          e.message +=
+            'Or, if you meant to create an async function, pass `async: true` as an option.';
         }
       }
       throw e;
@@ -308,32 +347,38 @@ export class Template {
 
     const returnedFn = function anonymous(data: any) {
       const includeMock = function () {
-        throw new Error('include() is not supported in the browser environment.');
+        throw new Error(
+          'include() is not supported in the browser environment.',
+        );
       };
       let locals;
       if (opts.unsafePrototypeLocals) {
         locals = data || utils.createNullProtoObjWherePossible();
+      } else {
+        locals = utils.shallowCopy(
+          utils.createNullProtoObjWherePossible(),
+          data,
+        );
       }
-      else {
-        locals = utils.shallowCopy(utils.createNullProtoObjWherePossible(), data);
-      }
-      return fn.apply(opts.context,
-        [locals, escapeFn, includeMock, rethrow]);
+      return fn.apply(opts.context, [locals, escapeFn, includeMock, rethrow]);
     };
     if (opts.filename && typeof Object.defineProperty === 'function') {
       const filename = opts.filename;
       const parts = filename.split(/[\\/]/);
       const lastPart = parts[parts.length - 1] || '';
       const dotIndex = lastPart.lastIndexOf('.');
-      const basename = dotIndex !== -1 ? lastPart.substring(0, dotIndex) : lastPart;
+      const basename =
+        dotIndex !== -1 ? lastPart.substring(0, dotIndex) : lastPart;
       try {
         Object.defineProperty(returnedFn, 'name', {
           value: basename,
           writable: false,
           enumerable: false,
-          configurable: true
+          configurable: true,
         });
-      } catch (e) {/* ignore */}
+      } catch (e) {
+        /* ignore */
+      }
     }
     return returnedFn;
   }
@@ -344,8 +389,9 @@ export class Template {
     if (opts.rmWhitespace) {
       // Have to use two separate replace here as `^` and `$` operators don't
       // work well with `\r` and empty lines don't work well with the `m` flag.
-      this.templateText =
-        this.templateText.replace(/[\r\n]+/g, '\n').replace(/^\s+|\s+$/gm, '');
+      this.templateText = this.templateText
+        .replace(/[\r\n]+/g, '\n')
+        .replace(/^\s+|\s+$/gm, '');
     }
 
     const self = this;
@@ -359,9 +405,15 @@ export class Template {
     const closeWhitespaceSlurpTag = utils.escapeRegExpChars('_' + d + c);
     const openWhitespaceSlurpReplacement = o + d + '_';
     const closeWhitespaceSlurpReplacement = '_' + d + c;
-    this.templateText =
-      this.templateText.replace(new RegExp('[ \\t]*' + openWhitespaceSlurpTag, 'gm'), openWhitespaceSlurpReplacement)
-        .replace(new RegExp(closeWhitespaceSlurpTag + '[ \\t]*', 'gm'), closeWhitespaceSlurpReplacement);
+    this.templateText = this.templateText
+      .replace(
+        new RegExp('[ \\t]*' + openWhitespaceSlurpTag, 'gm'),
+        openWhitespaceSlurpReplacement,
+      )
+      .replace(
+        new RegExp(closeWhitespaceSlurpTag + '[ \\t]*', 'gm'),
+        closeWhitespaceSlurpReplacement,
+      );
 
     const matches = this.parseTemplateText();
 
@@ -372,11 +424,20 @@ export class Template {
         // FIXME: May end up with some false positives here
         // Better to store modes as k/v with openDelimiter + delimiter as key
         // Then this can simply check against the map
-        if ( line.indexOf(o + d) === 0        // If it is a tag
-          && line.indexOf(o + d + d) !== 0) { // and is not escaped
+        if (
+          line.indexOf(o + d) === 0 && // If it is a tag
+          line.indexOf(o + d + d) !== 0
+        ) {
+          // and is not escaped
           closing = matches[index + 2];
-          if (!(closing === d + c || closing === '-' + d + c || closing === '_' + d + c)) {
-            throw new Error('Could not find matching close tag for "' + line + '".');
+          if (!(
+            closing === d + c ||
+            closing === '-' + d + c ||
+            closing === '_' + d + c
+          )) {
+            throw new Error(
+              'Could not find matching close tag for "' + line + '".',
+            );
           }
         }
         self.scanLine(line);
@@ -445,7 +506,7 @@ export class Template {
     const c = this.opts.closeDelimiter!;
     let newLineCount = 0;
 
-    newLineCount = (line.split('\n').length - 1);
+    newLineCount = line.split('\n').length - 1;
 
     switch (line) {
       case o + d:
@@ -463,11 +524,13 @@ export class Template {
         break;
       case o + d + d:
         this.mode = Template.modes.LITERAL;
-        this.source += '    ; __append("' + line.replace(o + d + d, o + d) + '")' + '\n';
+        this.source +=
+          '    ; __append("' + line.replace(o + d + d, o + d) + '")' + '\n';
         break;
       case d + d + c:
         this.mode = Template.modes.LITERAL;
-        this.source += '    ; __append("' + line.replace(d + d + c, d + c) + '")' + '\n';
+        this.source +=
+          '    ; __append("' + line.replace(d + d + c, d + c) + '")' + '\n';
         break;
       case d + c:
       case '-' + d + c:
@@ -498,7 +561,8 @@ export class Template {
               break;
             // Exec, esc, and output
             case Template.modes.ESCAPED:
-              this.source += '    ; __append(escapeFn(' + stripSemi(line) + '))' + '\n';
+              this.source +=
+                '    ; __append(escapeFn(' + stripSemi(line) + '))' + '\n';
               break;
             // Exec and output
             case Template.modes.RAW:
@@ -533,18 +597,32 @@ export class Template {
 export class EjsEngine {
   cache: Cache = utils.cache;
   localsName = _DEFAULT_LOCALS_NAME;
-  promiseImpl = (new Function('return this;'))().Promise;
+  promiseImpl = new Function('return this;')().Promise;
 
   openDelimiter?: string;
   closeDelimiter?: string;
   delimiter?: string;
 
-  compile(template: string, opts: Options & { async: true }): AsyncTemplateFunction;
-  compile(template: string, opts?: Options & { async?: false }): TemplateFunction;
-  compile(template: string, opts?: Options): TemplateFunction | AsyncTemplateFunction;
-  compile(template: string, opts?: Options): TemplateFunction | AsyncTemplateFunction {
+  compile(
+    template: string,
+    opts: Options & { async: true },
+  ): AsyncTemplateFunction;
+  compile(
+    template: string,
+    opts?: Options & { async?: false },
+  ): TemplateFunction;
+  compile(
+    template: string,
+    opts?: Options,
+  ): TemplateFunction | AsyncTemplateFunction;
+  compile(
+    template: string,
+    opts?: Options,
+  ): TemplateFunction | AsyncTemplateFunction {
     if (opts && opts.scope) {
-      console.warn('`scope` option is deprecated and will be removed in future EJS');
+      console.warn(
+        '`scope` option is deprecated and will be removed in future EJS',
+      );
       if (!opts.context) {
         opts.context = opts.scope;
       }
@@ -554,10 +632,26 @@ export class EjsEngine {
     return templ.compile();
   }
 
-  render(template: string, data: Record<string, any> | undefined, opts: Options & { async: true }): Promise<string>;
-  render(template: string, data?: Record<string, any>, opts?: Options & { async?: false }): string;
-  render(template: string, data?: Record<string, any>, opts?: Options): string | Promise<string>;
-  render(template: string, d?: Record<string, any>, o?: Options): string | Promise<string> {
+  render(
+    template: string,
+    data: Record<string, any> | undefined,
+    opts: Options & { async: true },
+  ): Promise<string>;
+  render(
+    template: string,
+    data?: Record<string, any>,
+    opts?: Options & { async?: false },
+  ): string;
+  render(
+    template: string,
+    data?: Record<string, any>,
+    opts?: Options,
+  ): string | Promise<string>;
+  render(
+    template: string,
+    d?: Record<string, any>,
+    o?: Options,
+  ): string | Promise<string> {
     const data = d || utils.createNullProtoObjWherePossible();
     const opts = o || utils.createNullProtoObjWherePossible();
 

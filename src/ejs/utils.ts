@@ -55,7 +55,7 @@ const _ENCODE_HTML_RULES: Record<string, string> = {
   '<': '&lt;',
   '>': '&gt;',
   '"': '&#34;',
-  "'": '&#39;'
+  "'": '&#39;',
 };
 const _MATCH_HTML = /[&<>'"]/g;
 
@@ -70,17 +70,17 @@ function encode_char(c: string): string {
  * @type {String}
  */
 const escapeFuncStr =
-  'var _ENCODE_HTML_RULES = {\n'
-+ '      "&": "&amp;"\n'
-+ '    , "<": "&lt;"\n'
-+ '    , ">": "&gt;"\n'
-+ '    , \'"\': "&#34;"\n'
-+ '    , "\'": "&#39;"\n'
-+ '    }\n'
-+ '  , _MATCH_HTML = /[&<>\'"]/g;\n'
-+ 'function encode_char(c) {\n'
-+ '  return _ENCODE_HTML_RULES[c] || c;\n'
-+ '};\n';
+  'var _ENCODE_HTML_RULES = {\n' +
+  '      "&": "&amp;"\n' +
+  '    , "<": "&lt;"\n' +
+  '    , ">": "&gt;"\n' +
+  '    , \'"\': "&#34;"\n' +
+  '    , "\'": "&#39;"\n' +
+  '    }\n' +
+  '  , _MATCH_HTML = /[&<>\'"]/g;\n' +
+  'function encode_char(c) {\n' +
+  '  return _ENCODE_HTML_RULES[c] || c;\n' +
+  '};\n';
 
 /**
  * Escape characters reserved in XML.
@@ -115,7 +115,9 @@ try {
     (escapeXML as any).toString = escapeXMLToString;
   }
 } catch (err) {
-  console.warn('Unable to set escapeXML.toString (is the Function prototype frozen?)');
+  console.warn(
+    'Unable to set escapeXML.toString (is the Function prototype frozen?)',
+  );
 }
 
 /**
@@ -129,7 +131,10 @@ try {
  * @static
  * @private
  */
-export function shallowCopy<T extends object, U extends object>(to: T, from: U): T & U {
+export function shallowCopy<T extends object, U extends object>(
+  to: T,
+  from: U,
+): T & U {
   const fromObj = (from || {}) as any;
   if (to !== null && to !== undefined) {
     for (const p in fromObj) {
@@ -206,7 +211,7 @@ export const cache: Cache = {
   },
   reset() {
     this._data = {};
-  }
+  },
 };
 
 /**
@@ -234,9 +239,9 @@ export const createNullProtoObjWherePossible: () => any = (function () {
       return Object.create(null);
     };
   }
-  if (!({__proto__: null} instanceof Object)) {
+  if (!({ __proto__: null } instanceof Object)) {
     return function () {
-      return {__proto__: null};
+      return { __proto__: null };
     };
   }
   // Not possible, just pass through
@@ -272,7 +277,7 @@ const utils = {
   cache,
   hyphenToCamel,
   createNullProtoObjWherePossible,
-  hasOwnOnlyObject
+  hasOwnOnlyObject,
 };
 
 export default utils;
