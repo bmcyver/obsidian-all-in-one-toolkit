@@ -1,11 +1,12 @@
 import { Plugin } from 'obsidian';
 import { DEFAULT_SETTINGS, AllInOneToolkitSettingTab } from './settings';
-import type { ToolkitSettings } from './settings';
+import type { ToolkitSettings, EjsRule } from './settings';
 import { PeriodicNotesManager } from './managers/periodic-notes';
 import { FolderNoteManager } from './managers/folder-notes';
 import { ImageConverterManager } from './managers/image-converter';
 import { TrashManager } from './managers/trash-manager';
 import { ScrollManager } from './managers/scroll-manager';
+import { EjsManager } from './managers/ejs-manager';
 
 interface PluginManager {
   onload(): void;
@@ -22,6 +23,7 @@ export default class AllInOneToolkitPlugin extends Plugin {
   imageConverterManager!: ImageConverterManager;
   trashManager!: TrashManager;
   scrollManager!: ScrollManager;
+  ejsManager!: EjsManager;
 
   async onload() {
     await this.loadSettings();
@@ -32,6 +34,7 @@ export default class AllInOneToolkitPlugin extends Plugin {
     this.imageConverterManager = new ImageConverterManager(this);
     this.trashManager = new TrashManager(this);
     this.scrollManager = new ScrollManager(this);
+    this.ejsManager = new EjsManager(this);
 
     this.managers = [
       this.periodicNotesManager,
@@ -39,6 +42,7 @@ export default class AllInOneToolkitPlugin extends Plugin {
       this.imageConverterManager,
       this.trashManager,
       this.scrollManager,
+      this.ejsManager,
     ];
 
     // 2. Load all managers
@@ -64,6 +68,8 @@ export default class AllInOneToolkitPlugin extends Plugin {
       folderNoteExtension?: string;
       defaultCreateExtension?: string;
       scrollSpeed?: number;
+      ejsTemplatesFolder?: string;
+      ejsRules?: EjsRule[];
     } | null;
 
     this.settings = {
@@ -74,6 +80,9 @@ export default class AllInOneToolkitPlugin extends Plugin {
         data?.defaultCreateExtension ??
         DEFAULT_SETTINGS.folderNoteExtension,
       scrollSpeed: data?.scrollSpeed ?? DEFAULT_SETTINGS.scrollSpeed,
+      ejsTemplatesFolder:
+        data?.ejsTemplatesFolder ?? DEFAULT_SETTINGS.ejsTemplatesFolder,
+      ejsRules: data?.ejsRules ?? DEFAULT_SETTINGS.ejsRules,
     };
   }
 

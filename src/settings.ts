@@ -1,7 +1,24 @@
-import { App, PluginSettingTab, Setting, TextComponent } from 'obsidian';
+import {
+  App,
+  PluginSettingTab,
+  Setting,
+  TextComponent,
+  Notice,
+} from 'obsidian';
 import type { SettingDefinitionItem } from 'obsidian';
 import type AllInOneToolkitPlugin from './main';
 import { SUPPORTED_EXTENSIONS as FOLDER_NOTE_EXTENSIONS } from './managers/folder-notes';
+
+interface AppLocalStorage {
+  loadLocalStorage(key: string): string | null;
+  saveLocalStorage(key: string, value: string): void;
+}
+
+export interface EjsRule {
+  id: string;
+  pattern: string;
+  templatePath: string;
+}
 
 export interface ToolkitSettings {
   // Image converter
@@ -10,12 +27,17 @@ export interface ToolkitSettings {
   folderNoteExtension: string;
   // Scroll speed
   scrollSpeed: number;
+  // EJS Templates
+  ejsTemplatesFolder: string;
+  ejsRules: EjsRule[];
 }
 
 export const DEFAULT_SETTINGS: ToolkitSettings = {
   webpQuality: 85,
   folderNoteExtension: 'md',
   scrollSpeed: 1,
+  ejsTemplatesFolder: 'Templates/EJS',
+  ejsRules: [],
 };
 
 export class AllInOneToolkitSettingTab extends PluginSettingTab {
@@ -162,5 +184,139 @@ export class AllInOneToolkitSettingTab extends PluginSettingTab {
           await this.plugin.saveSettings();
         });
       });
+
+    // 4. EJS Templates Settings
+    new Setting(containerEl).setName('EJS Templates').setHeading();
+
+    new Setting(containerEl)
+      .setName('EJS Templates Folder')
+      .setDesc(
+        'Set the path to the folder containing your EJS templates (e.g. Templates/EJS).',
+      )
+      .addText((text) => {
+        text.setValue(this.plugin.settings.ejsTemplatesFolder || '');
+        text.onChange(async (value) => {
+          this.plugin.settings.ejsTemplatesFolder = value.trim();
+          await this.plugin.saveSettings();
+        });
+      });
+
+    new Setting(containerEl)
+      .setName('Clear Approved Hashes')
+      .setDesc(
+        'Reset and clear all EJS template SHA-256 hashes approved in localStorage.',
+      )
+      .addButton((button) => {
+        button.setButtonText('Clear Hashes').onClick(() => {
+          const storage = this.app as unknown as AppLocalStorage;
+          storage.saveLocalStorage('ejs-allowed-hashes', '');
+          new Notice('All EJS template hashes cleared.');
+        });
+        button.buttonEl.addClass('mod-warning');
+      });
+
+    // Rules header / explanation
+    const rulesContainer = containerEl.createDiv('ejs-rules-container');
+    new Setting(rulesContainer).setName('EJS Template Rules').setHeading();
+    rulesContainer.createEl('p', {
+      text: 'Define regex patterns to map newly created file paths to EJS template files. Rules are checked sequentially from top to bottom. The first matching rule will be applied.',
+      cls: 'setting-item-description',
+    });
+
+    const renderRules = () => {
+      rulesContainer.empty();
+
+      const listEl = rulesContainer.createDiv('ejs-rules-list');
+
+      this.plugin.settings.ejsRules.forEach((rule, idx) => {
+        const ruleEl = listEl.createDiv('ejs-rule-item');
+
+        // Pattern Input
+        new Setting(ruleEl).setName('Regex Pattern').addText((text) => {
+          text
+            .setPlaceholder('^40 - Periodic/.*')
+            .setValue(rule.pattern)
+            .onChange((val) => {
+              rule.pattern = val;
+              void this.plugin.saveSettings();
+            });
+        });
+
+        // Template Path Input
+        new Setting(ruleEl).setName('Template Path').addText((text) => {
+          text
+            .setPlaceholder('Templates/EJS/weekly.ejs')
+            .setValue(rule.templatePath)
+            .onChange((val) => {
+              rule.templatePath = val;
+              void this.plugin.saveSettings();
+            });
+        });
+
+        // Order & Delete Buttons
+        const buttonGroup = ruleEl.createDiv('ejs-rule-buttons');
+
+        // Move Up
+        if (idx > 0) {
+          const upBtn = buttonGroup.createEl('button', { text: '↑' });
+          upBtn.addEventListener('click', () => {
+            const temp = this.plugin.settings.ejsRules[idx - 1]!;
+            this.plugin.settings.ejsRules[idx - 1] = rule;
+            this.plugin.settings.ejsRules[idx] = temp;
+            void (async () => {
+              await this.plugin.saveSettings();
+              renderRules();
+            })();
+          });
+        }
+
+        // Move Down
+        if (idx < this.plugin.settings.ejsRules.length - 1) {
+          const downBtn = buttonGroup.createEl('button', { text: '↓' });
+          downBtn.addEventListener('click', () => {
+            const temp = this.plugin.settings.ejsRules[idx + 1]!;
+            this.plugin.settings.ejsRules[idx + 1] = rule;
+            this.plugin.settings.ejsRules[idx] = temp;
+            void (async () => {
+              await this.plugin.saveSettings();
+              renderRules();
+            })();
+          });
+        }
+
+        // Delete
+        const deleteBtn = buttonGroup.createEl('button', {
+          text: 'Delete',
+          cls: 'mod-warning',
+        });
+        deleteBtn.addEventListener('click', () => {
+          this.plugin.settings.ejsRules.splice(idx, 1);
+          void (async () => {
+            await this.plugin.saveSettings();
+            renderRules();
+          })();
+        });
+      });
+
+      // Add Rule Button
+      new Setting(rulesContainer).addButton((btn) => {
+        btn
+          .setButtonText('Add Rule')
+          .setCta()
+          .onClick(() => {
+            this.plugin.settings.ejsRules.push({
+              id: Math.random().toString(36).substring(2, 9),
+              pattern: '',
+              templatePath: '',
+            });
+            void (async () => {
+              await this.plugin.saveSettings();
+              renderRules();
+            })();
+          });
+      });
+    };
+
+    renderRules();
   }
 }
