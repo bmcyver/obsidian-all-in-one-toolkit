@@ -51,12 +51,14 @@ export class TrashManagerModal extends Modal {
   private listEl!: HTMLElement;
   private statsTextEl!: HTMLElement;
 
+  private currentPage = 1;
+  private itemsPerPage = 30;
+
   constructor(app: App, plugin: AllInOneToolkitPlugin) {
     super(app);
     this.plugin = plugin;
-    // Get trashManager from plugin if initialized, otherwise create new.
-    // Note: Since main.ts initializes it, we can assume it exists.
-    this.trashManager = plugin.trashManager || new TrashManager(plugin);
+    this.trashManager =
+      plugin.getManager(TrashManager) || new TrashManager(plugin);
   }
 
   async onOpen() {
@@ -81,9 +83,14 @@ export class TrashManagerModal extends Modal {
       cls: 'tk-trash-search',
     });
 
+    let debounceTimeout: number;
     searchInput.addEventListener('input', (e) => {
-      this.searchQuery = (e.target as HTMLInputElement).value.toLowerCase();
-      this.filterAndRender();
+      window.clearTimeout(debounceTimeout);
+      debounceTimeout = window.setTimeout(() => {
+        this.searchQuery = (e.target as HTMLInputElement).value.toLowerCase();
+        this.currentPage = 1;
+        this.filterAndRender(true);
+      }, 250);
     });
 
     const emptyBtn = actionBar.createEl('button', {
@@ -97,6 +104,14 @@ export class TrashManagerModal extends Modal {
 
     // List container
     this.listEl = contentEl.createDiv({ cls: 'tk-trash-list' });
+
+    // Scroll event listener for infinite scrolling
+    this.listEl.addEventListener('scroll', () => {
+      const { scrollTop, scrollHeight, clientHeight } = this.listEl;
+      if (scrollHeight - scrollTop - clientHeight < 100) {
+        this.loadMore();
+      }
+    });
 
     // Load and render
     await this.loadItems();
@@ -112,7 +127,8 @@ export class TrashManagerModal extends Modal {
     try {
       this.items = await this.trashManager.getTrashFiles();
       this.updateStats();
-      this.filterAndRender();
+      this.currentPage = 1;
+      this.filterAndRender(true);
     } catch (err) {
       this.listEl.empty();
       this.listEl.createDiv({
@@ -130,25 +146,43 @@ export class TrashManagerModal extends Modal {
     );
   }
 
-  filterAndRender() {
-    this.listEl.empty();
+  filterAndRender(reset = true) {
+    if (reset) {
+      this.listEl.empty();
+    }
 
     this.filteredItems = this.items.filter((item) =>
       item.originalPath.toLowerCase().includes(this.searchQuery),
     );
 
     if (this.filteredItems.length === 0) {
-      const emptyMsg = this.listEl.createDiv({ cls: 'tk-trash-empty-msg' });
-      emptyMsg.createDiv({
-        text: '휴지통이 비어 있습니다.',
-        cls: 'tk-trash-empty-text',
-      });
+      if (reset) {
+        const emptyMsg = this.listEl.createDiv({ cls: 'tk-trash-empty-msg' });
+        emptyMsg.createDiv({
+          text: '휴지통이 비어 있습니다.',
+          cls: 'tk-trash-empty-text',
+        });
+      }
       return;
     }
 
-    for (const item of this.filteredItems) {
-      this.renderTrashItem(this.listEl, item);
+    const start = (this.currentPage - 1) * this.itemsPerPage;
+    const end = Math.min(
+      this.currentPage * this.itemsPerPage,
+      this.filteredItems.length,
+    );
+
+    for (let i = start; i < end; i++) {
+      this.renderTrashItem(this.listEl, this.filteredItems[i]!);
     }
+  }
+
+  loadMore() {
+    if (this.currentPage * this.itemsPerPage >= this.filteredItems.length) {
+      return;
+    }
+    this.currentPage++;
+    this.filterAndRender(false);
   }
 
   private renderTrashItem(containerEl: HTMLElement, item: TrashFile) {

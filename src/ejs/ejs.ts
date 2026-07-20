@@ -291,7 +291,7 @@ export class Template {
         this.source +
         '} catch (e) {' +
         '\n' +
-        '  rethrow(e as Error, __lines, __filename, __line, escapeFn);' +
+        '  rethrow(e, __lines, __filename, __line, escapeFn);' +
         '\n' +
         '}' +
         '\n';

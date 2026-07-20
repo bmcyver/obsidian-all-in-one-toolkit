@@ -1,4 +1,4 @@
-import { type Editor, Notice, TFile } from 'obsidian';
+import { type Editor, Notice, TFile, Setting } from 'obsidian';
 import type AllInOneToolkitPlugin from '../main';
 import {
   SUPPORTED_IMAGE_EXTENSIONS,
@@ -12,17 +12,23 @@ import {
   normalizeFileName,
   ensureDirectoryExists,
   formatBytes,
+  isValidPath,
 } from '../utils/file';
+import { BaseManager } from './base';
+import { FolderSuggest } from '../ui/folder-suggest';
 
-function buildAssetPath(basename: string, extension: string): string {
-  return `assets/${new Date().getFullYear()}/${normalizeFileName(basename)}-${Date.now()}.${extension}`;
-}
-
-export class ImageConverterManager {
-  private plugin: AllInOneToolkitPlugin;
+export class ImageConverterManager implements BaseManager {
+  plugin: AllInOneToolkitPlugin;
 
   constructor(plugin: AllInOneToolkitPlugin) {
     this.plugin = plugin;
+  }
+
+  private buildAssetPath(basename: string, extension: string): string {
+    const storePathSetting =
+      this.plugin.settings.imageStorePath || 'assets/YYYY';
+    const resolvedFolder = window.moment().format(storePathSetting);
+    return `${resolvedFolder}/${normalizeFileName(basename)}-${Date.now()}.${extension}`;
   }
 
   onload() {
@@ -166,7 +172,7 @@ export class ImageConverterManager {
       targetBasename = backlinks[0] || sourceFile.basename;
     }
 
-    const destinationPath = buildAssetPath(
+    const destinationPath = this.buildAssetPath(
       targetBasename,
       shouldSkipConversion ? 'avif' : 'webp',
     );
@@ -215,7 +221,7 @@ export class ImageConverterManager {
     }
 
     const shouldSkipConversion = isAvifFile(sourceFile);
-    const destinationPath = buildAssetPath(
+    const destinationPath = this.buildAssetPath(
       activeFile.basename,
       shouldSkipConversion ? 'avif' : 'webp',
     );
@@ -279,5 +285,47 @@ export class ImageConverterManager {
     }
 
     new Notice(`Converted ${successCount} linked image(s) in this note.`);
+  }
+
+  renderSettings(containerEl: HTMLElement) {
+    new Setting(containerEl).setName('이미지 WebP 변환').setHeading();
+
+    new Setting(containerEl)
+      .setName('WebP 이미지 품질')
+      .setDesc(
+        '변환될 WebP 이미지의 품질을 설정합니다 (0-100). 품질이 높을수록 파일 크기가 커집니다.',
+      )
+      .addText((text) => {
+        text.inputEl.type = 'number';
+        text.inputEl.min = '0';
+        text.inputEl.max = '100';
+        text.setValue(String(this.plugin.settings.webpQuality));
+        text.onChange(async (value) => {
+          let num = parseInt(value, 10);
+          if (isNaN(num)) return;
+          num = Math.max(0, Math.min(100, num));
+          this.plugin.settings.webpQuality = num;
+          await this.plugin.saveSettings();
+        });
+      });
+
+    new Setting(containerEl)
+      .setName('WebP 이미지 저장 경로')
+      .setDesc(
+        '변환된 WebP 이미지를 저장할 폴더 경로를 설정합니다. 현재 연도를 나타내는 YYYY 포맷을 지원합니다 (예: assets/YYYY). 대괄호 [ ]로 감싸인 부분은 치환되지 않고 그대로 사용됩니다.',
+      )
+      .addText((text) => {
+        new FolderSuggest(this.plugin.app, text.inputEl);
+        text.setValue(this.plugin.settings.imageStorePath || '');
+        text.onChange(async (value) => {
+          const trimmed = value.trim();
+          if (!isValidPath(trimmed)) {
+            new Notice('경로에 사용할 수 없는 문자가 포함되어 있습니다.');
+            return;
+          }
+          this.plugin.settings.imageStorePath = trimmed;
+          await this.plugin.saveSettings();
+        });
+      });
   }
 }

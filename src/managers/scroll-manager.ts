@@ -1,6 +1,8 @@
-import { Platform } from 'obsidian';
+import { Platform, Setting, TextComponent } from 'obsidian';
 import type { WorkspaceWindow } from 'obsidian';
 import type AllInOneToolkitPlugin from '../main';
+import { BaseManager } from './base';
+import { DEFAULT_SETTINGS } from '../settings';
 
 interface AugmentedWheelEvent extends WheelEvent {
   path?: Element[];
@@ -8,8 +10,9 @@ interface AugmentedWheelEvent extends WheelEvent {
   wheelDeltaX?: number;
 }
 
-export class ScrollManager {
-  private plugin: AllInOneToolkitPlugin;
+export class ScrollManager implements BaseManager {
+  plugin: AllInOneToolkitPlugin;
+  private windows: Set<Window> = new Set();
 
   private animationSmoothness = 3;
   private positionY = 0;
@@ -26,9 +29,8 @@ export class ScrollManager {
       return;
     }
 
-    this.plugin.registerDomEvent(window, 'wheel', this.scrollListener, {
-      passive: false,
-    });
+    window.addEventListener('wheel', this.scrollListener, { passive: false });
+    this.windows.add(window);
 
     this.plugin.registerEvent(
       this.plugin.app.workspace.on('window-open', this.windowOpenListener),
@@ -36,13 +38,30 @@ export class ScrollManager {
   }
 
   onunload() {
-    // Lifecycle cleanup placeholder
+    for (const win of this.windows) {
+      try {
+        win.removeEventListener('wheel', this.scrollListener);
+      } catch {
+        // ignore
+      }
+    }
+    this.windows.clear();
   }
 
   private windowOpenListener = (_win: WorkspaceWindow, win: Window) => {
-    this.plugin.registerDomEvent(win, 'wheel', this.scrollListener, {
-      passive: false,
-    });
+    win.addEventListener('wheel', this.scrollListener, { passive: false });
+    this.windows.add(win);
+
+    const handleClose = () => {
+      try {
+        win.removeEventListener('wheel', this.scrollListener);
+        win.removeEventListener('unload', handleClose);
+      } catch {
+        // ignore
+      }
+      this.windows.delete(win);
+    };
+    win.addEventListener('unload', handleClose);
   };
 
   private scrollListener = (event: AugmentedWheelEvent) => {
@@ -178,5 +197,41 @@ export class ScrollManager {
       isTrackPad = true;
     }
     return isTrackPad;
+  }
+
+  renderSettings(containerEl: HTMLElement) {
+    new Setting(containerEl).setName('스크롤 속도').setHeading();
+
+    let scrollSpeedText: TextComponent;
+    new Setting(containerEl)
+      .setName('마우스 스크롤 속도')
+      .setDesc(
+        '마우스 휠 스크롤 속도를 조절합니다 (0.05 ~ 2). 기본값은 1입니다.',
+      )
+      .addExtraButton((button) => {
+        button
+          .setIcon('reset')
+          .setTooltip('기본값 복원')
+          .onClick(async () => {
+            this.plugin.settings.scrollSpeed = DEFAULT_SETTINGS.scrollSpeed;
+            scrollSpeedText.setValue(String(DEFAULT_SETTINGS.scrollSpeed));
+            await this.plugin.saveSettings();
+          });
+      })
+      .addText((text) => {
+        scrollSpeedText = text;
+        text.inputEl.type = 'number';
+        text.inputEl.min = '0.05';
+        text.inputEl.max = '2';
+        text.inputEl.step = '0.05';
+        text.setValue(String(this.plugin.settings.scrollSpeed));
+        text.onChange(async (value) => {
+          let num = parseFloat(value);
+          if (isNaN(num)) return;
+          num = Math.max(0.05, Math.min(2, num));
+          this.plugin.settings.scrollSpeed = num;
+          await this.plugin.saveSettings();
+        });
+      });
   }
 }

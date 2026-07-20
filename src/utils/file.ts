@@ -64,3 +64,10 @@ export function formatBytes(bytes: number): string {
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
+
+/**
+ * Checks if the given path contains invalid characters.
+ */
+export function isValidPath(path: string): boolean {
+  return !/[*?"<>|:]/.test(path);
+}
