@@ -112,6 +112,11 @@ export class EjsManager extends BaseManager {
       return;
     }
 
+    const fileContent = await this.plugin.app.vault.read(file);
+    if (fileContent.trim() !== '') {
+      return;
+    }
+
     const templatePath = this.getFullTemplatePath(matchedRule.templatePath);
     const templateFile =
       this.plugin.app.vault.getAbstractFileByPath(templatePath);
@@ -146,7 +151,12 @@ export class EjsManager extends BaseManager {
       });
 
       // 4. Overwrite generated file content
-      await this.plugin.app.vault.modify(file, rendered);
+      try {
+        await this.plugin.app.vault.modify(file, rendered);
+      } catch (modifyErr) {
+        console.warn('vault.modify failed, trying adapter.write:', modifyErr);
+        await this.plugin.app.vault.adapter.write(file.path, rendered);
+      }
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : String(err);
       new Notice(`EJS 렌더링 오류: ${errMsg}`);
