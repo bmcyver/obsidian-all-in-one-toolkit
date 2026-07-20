@@ -3,6 +3,9 @@ import { DEFAULT_SETTINGS } from '../settings';
 import { stripFolderPrefix } from '../utils/file';
 
 export class FolderSuggest extends AbstractInputSuggest<TFolder> {
+  // textInputEl from AbstractInputSuggest is typed broadly as HTMLInputElement | HTMLTextAreaElement,
+  // and might not be exposed properly in all environment configurations.
+  // We keep a typed inputEl reference to perform type-safe value assignments.
   private inputEl: HTMLInputElement;
 
   constructor(app: App, textInputEl: HTMLInputElement) {
@@ -39,6 +42,7 @@ export class FolderSuggest extends AbstractInputSuggest<TFolder> {
 }
 
 export class FileSuggest extends AbstractInputSuggest<TFile> {
+  // Similar to FolderSuggest, we keep a typed inputEl reference to guarantee HTMLInputElement type safety.
   private inputEl: HTMLInputElement;
   private templateFolder: string;
 

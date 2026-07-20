@@ -16,6 +16,7 @@ import {
 import { BaseManager } from './base';
 import { FolderSuggest } from '../ui/folder-suggest';
 import { DEFAULT_SETTINGS } from '../settings';
+import { showError, clearError } from '../utils/ui';
 
 export class ImageConverterManager extends BaseManager {
   protected isEnabled(): boolean {
@@ -269,15 +270,20 @@ export class ImageConverterManager extends BaseManager {
       return;
     }
 
-    let successCount = 0;
-    for (const imageFile of linkedImageFiles) {
-      try {
-        await this.handleFileMenuEvent(imageFile, noteFile.basename);
-        successCount++;
-      } catch (error) {
-        new Notice(`${imageFile.name} 변환 실패: ${(error as Error).message}`);
+    const results = await Promise.allSettled(
+      linkedImageFiles.map((imageFile) =>
+        this.handleFileMenuEvent(imageFile, noteFile.basename),
+      ),
+    );
+    const successCount = results.filter((r) => r.status === 'fulfilled').length;
+    results.forEach((r, i) => {
+      if (r.status === 'rejected') {
+        const errorFile = linkedImageFiles[i];
+        const errorMsg =
+          r.reason instanceof Error ? r.reason.message : String(r.reason);
+        new Notice(`${errorFile?.name || '이미지'} 변환 실패: ${errorMsg}`);
       }
-    }
+    });
 
     new Notice(
       `이 노트에서 링크된 이미지 ${successCount}개를 WebP로 변환했습니다.`,
@@ -323,18 +329,17 @@ export class ImageConverterManager extends BaseManager {
         void (async () => {
           const num = parseInt(value, 10);
           if (value.trim() === '' || isNaN(num)) {
-            qualityErrorEl.textContent = '숫자를 입력해 주세요.';
-            qualityErrorEl.removeClass('is-hidden');
+            showError(qualityErrorEl, '숫자를 입력해 주세요.');
             return;
           }
           if (num < 0 || num > 100) {
-            qualityErrorEl.textContent =
-              '품질 값은 0에서 100 사이의 숫자여야 합니다.';
-            qualityErrorEl.removeClass('is-hidden');
+            showError(
+              qualityErrorEl,
+              '품질 값은 0에서 100 사이의 숫자여야 합니다.',
+            );
             return;
           }
-          qualityErrorEl.addClass('is-hidden');
-          qualityErrorEl.textContent = '';
+          clearError(qualityErrorEl);
           this.plugin.settings.webpQuality = num;
           await this.plugin.saveSettings();
         })();
@@ -357,13 +362,13 @@ export class ImageConverterManager extends BaseManager {
         void (async () => {
           const trimmed = value.trim();
           if (!isValidPath(trimmed)) {
-            pathErrorEl.textContent =
-              '경로에 사용할 수 없는 문자가 포함되어 있습니다.';
-            pathErrorEl.removeClass('is-hidden');
+            showError(
+              pathErrorEl,
+              '경로에 사용할 수 없는 문자가 포함되어 있습니다.',
+            );
             return;
           }
-          pathErrorEl.addClass('is-hidden');
-          pathErrorEl.textContent = '';
+          clearError(pathErrorEl);
           this.plugin.settings.imageStorePath = trimmed;
           await this.plugin.saveSettings();
         })();

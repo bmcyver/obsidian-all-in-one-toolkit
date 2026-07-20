@@ -1,7 +1,8 @@
-import { Platform, Setting, TextComponent, type EventRef } from 'obsidian';
+import { Platform, Setting, TextComponent } from 'obsidian';
 import type { WorkspaceWindow } from 'obsidian';
 import { BaseManager } from './base';
 import { DEFAULT_SETTINGS } from '../settings';
+import { showError, clearError } from '../utils/ui';
 
 interface AugmentedWheelEvent extends WheelEvent {
   path?: Element[];
@@ -11,7 +12,7 @@ interface AugmentedWheelEvent extends WheelEvent {
 
 export class ScrollManager extends BaseManager {
   private windows: Set<Window> = new Set();
-  private windowOpenRef: EventRef | null = null;
+  private rafId: number | null = null;
 
   private animationSmoothness = 3;
   private positionY = 0;
@@ -31,9 +32,8 @@ export class ScrollManager extends BaseManager {
     window.addEventListener('wheel', this.scrollListener, { passive: false });
     this.windows.add(window);
 
-    this.windowOpenRef = this.plugin.app.workspace.on(
-      'window-open',
-      this.windowOpenListener,
+    this.plugin.registerEvent(
+      this.plugin.app.workspace.on('window-open', this.windowOpenListener),
     );
   }
 
@@ -47,10 +47,12 @@ export class ScrollManager extends BaseManager {
     }
     this.windows.clear();
 
-    if (this.windowOpenRef) {
-      this.plugin.app.workspace.offref(this.windowOpenRef);
-      this.windowOpenRef = null;
+    if (this.rafId !== null) {
+      window.cancelAnimationFrame(this.rafId);
+      this.rafId = null;
     }
+    this.isMoving = false;
+    this.target = undefined;
   }
 
   private windowOpenListener = (_win: WorkspaceWindow, win: Window) => {
@@ -159,7 +161,9 @@ export class ScrollManager extends BaseManager {
       return this.stopScrollAnimation();
     }
 
-    window.requestAnimationFrame(this.updateScrollAnimation.bind(this));
+    this.rafId = window.requestAnimationFrame(
+      this.updateScrollAnimation.bind(this),
+    );
   }
 
   private stopScrollAnimation() {
@@ -239,8 +243,7 @@ export class ScrollManager extends BaseManager {
           .setIcon('reset')
           .setTooltip('기본값 복원')
           .onClick(async () => {
-            speedErrorEl.addClass('is-hidden');
-            speedErrorEl.textContent = '';
+            clearError(speedErrorEl);
             this.plugin.settings.scrollSpeed = DEFAULT_SETTINGS.scrollSpeed;
             scrollSpeedText.setValue(String(DEFAULT_SETTINGS.scrollSpeed));
             await this.plugin.saveSettings();
@@ -257,18 +260,17 @@ export class ScrollManager extends BaseManager {
           void (async () => {
             const num = parseFloat(value);
             if (value.trim() === '' || isNaN(num)) {
-              speedErrorEl.textContent = '숫자를 입력해 주세요.';
-              speedErrorEl.removeClass('is-hidden');
+              showError(speedErrorEl, '숫자를 입력해 주세요.');
               return;
             }
             if (num < 0.05 || num > 2) {
-              speedErrorEl.textContent =
-                '스크롤 속도는 0.05에서 2 사이의 숫자여야 합니다.';
-              speedErrorEl.removeClass('is-hidden');
+              showError(
+                speedErrorEl,
+                '스크롤 속도는 0.05에서 2 사이의 숫자여야 합니다.',
+              );
               return;
             }
-            speedErrorEl.addClass('is-hidden');
-            speedErrorEl.textContent = '';
+            clearError(speedErrorEl);
             this.plugin.settings.scrollSpeed = num;
             await this.plugin.saveSettings();
           })();
