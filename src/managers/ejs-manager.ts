@@ -6,6 +6,7 @@ import {
   Setting,
   setIcon,
   App,
+  normalizePath,
 } from 'obsidian';
 import ejs from '../ejs/ejs';
 import { EjsSecurityModal } from '../ui/security-modal';
@@ -47,10 +48,11 @@ export class EjsManager extends BaseManager {
       this.plugin.settings.ejsTemplatesFolder ||
       DEFAULT_SETTINGS.ejsTemplatesFolder;
 
-    const normalizedFolder = templatesFolder.replace(/\/+$/, '');
-    const normalizedPath = templatePath.replace(/^\/+/, '');
+    const normalizedFolder = normalizePath(templatesFolder);
+    const normalizedPath = normalizePath(templatePath);
 
     if (
+      normalizedFolder &&
       normalizedPath
         .toLowerCase()
         .startsWith(normalizedFolder.toLowerCase() + '/')
@@ -58,7 +60,7 @@ export class EjsManager extends BaseManager {
       return normalizedPath;
     }
     return normalizedFolder
-      ? `${normalizedFolder}/${normalizedPath}`
+      ? normalizePath(`${normalizedFolder}/${normalizedPath}`)
       : normalizedPath;
   }
 
@@ -118,10 +120,9 @@ export class EjsManager extends BaseManager {
     }
 
     const templatePath = this.getFullTemplatePath(matchedRule.templatePath);
-    const templateFile =
-      this.plugin.app.vault.getAbstractFileByPath(templatePath);
+    const templateFile = this.plugin.app.vault.getFileByPath(templatePath);
 
-    if (!(templateFile instanceof TFile)) {
+    if (!templateFile) {
       new Notice(`EJS 템플릿 파일을 찾을 수 없습니다: ${templatePath}`);
       return;
     }
@@ -377,8 +378,8 @@ export class EjsManager extends BaseManager {
 
       const fullPath = this.getFullTemplatePath(rule.templatePath);
 
-      const file = this.plugin.app.vault.getAbstractFileByPath(fullPath);
-      if (!(file instanceof TFile)) {
+      const file = this.plugin.app.vault.getFileByPath(fullPath);
+      if (!file) {
         const badge = statusAreaEl.createDiv('ejs-rule-status-icon missing');
         badge.setAttribute('title', '파일 없음');
         setIcon(badge, 'x');

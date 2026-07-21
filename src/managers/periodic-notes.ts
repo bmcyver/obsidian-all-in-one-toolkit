@@ -1,4 +1,4 @@
-import { TFile, Setting } from 'obsidian';
+import { Setting } from 'obsidian';
 import { ensureDirectoryExists, isValidPath } from '../utils/file';
 import { BaseManager } from './base';
 import { FolderSuggest } from '../ui/folder-suggest';
@@ -72,7 +72,7 @@ export class PeriodicNotesManager extends BaseManager {
     };
     const fullPath = pathGenerator[noteType]();
 
-    let file = this.plugin.app.vault.getAbstractFileByPath(fullPath);
+    let file = this.plugin.app.vault.getFileByPath(fullPath);
 
     if (!file) {
       await ensureDirectoryExists(this.plugin.app, fullPath);
@@ -83,7 +83,7 @@ export class PeriodicNotesManager extends BaseManager {
       }
     }
 
-    if (file instanceof TFile) {
+    if (file) {
       const leaf = this.plugin.app.workspace.getLeaf(false);
       await leaf.openFile(file);
     }

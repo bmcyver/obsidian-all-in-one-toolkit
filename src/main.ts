@@ -40,7 +40,7 @@ export default class AllInOneToolkitPlugin extends Plugin {
 
   onunload() {
     // Unload all managers in reverse order
-    for (const manager of this.managers.slice().reverse()) {
+    for (const manager of this.managers.toReversed()) {
       manager.disable();
     }
   }

@@ -47,13 +47,35 @@ export class TrashManager extends BaseManager {
     return files;
   }
 
+  private async limitConcurrency<T, R>(
+    items: T[],
+    limit: number,
+    fn: (item: T) => Promise<R>,
+  ): Promise<R[]> {
+    const results: R[] = new Array<R>(items.length);
+    const iterator = items.entries();
+
+    const workers = Array(Math.min(limit, items.length))
+      .fill(null)
+      .map(async () => {
+        for (const [index, item] of iterator) {
+          results[index] = await fn(item);
+        }
+      });
+
+    await Promise.all(workers);
+    return results;
+  }
+
   private async collectTrashFiles(dir: string): Promise<TrashFile[]> {
     const adapter = this.plugin.app.vault.adapter;
     const list = await adapter.list(dir);
     const files: TrashFile[] = [];
 
-    // Parallelize stat() calls for files in the current folder
-    const stats = await Promise.all(list.files.map((f) => adapter.stat(f)));
+    // Limit concurrency of stat() calls to 50 to avoid I/O bottlenecks
+    const stats = await this.limitConcurrency(list.files, 50, (f) =>
+      adapter.stat(f),
+    );
     list.files.forEach((file, i) => {
       const stat = stats[i];
       const name = file.split('/').pop() || '';
@@ -67,9 +89,11 @@ export class TrashManager extends BaseManager {
       });
     });
 
-    // Recursively collect folders in parallel
-    const folderFilesResults = await Promise.all(
-      list.folders.map((folder) => this.collectTrashFiles(folder)),
+    // Recursively collect folders in parallel (limited to 10 concurrently)
+    const folderFilesResults = await this.limitConcurrency(
+      list.folders,
+      10,
+      (folder) => this.collectTrashFiles(folder),
     );
     for (const folderFiles of folderFilesResults) {
       files.push(...folderFiles);

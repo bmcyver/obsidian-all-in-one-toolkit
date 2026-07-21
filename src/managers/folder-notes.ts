@@ -1,4 +1,12 @@
-import { TFolder, TFile, type WorkspaceLeaf, Notice, Setting } from 'obsidian';
+import {
+  TFolder,
+  TFile,
+  type WorkspaceLeaf,
+  Notice,
+  Setting,
+  normalizePath,
+} from 'obsidian';
+import type { WorkspaceWindow } from 'obsidian';
 import { splitFileName } from '../utils/file';
 import { BaseManager } from './base';
 
@@ -14,6 +22,8 @@ export class FolderNoteManager extends BaseManager {
   private pendingFolders: Set<Element> = new Set();
   private fullRefreshPending = false;
   private pendingContainer: Element | null = null;
+  private windows: Set<Window> = new Set();
+  private folderNotePaths: Set<string> = new Set();
 
   protected isEnabled(): boolean {
     return this.plugin.settings.folderNoteEnabled;
@@ -21,6 +31,9 @@ export class FolderNoteManager extends BaseManager {
 
   onSettingsUpdate() {
     super.onSettingsUpdate();
+    if (this.isEnabled()) {
+      this.rebuildFolderNotePathsCache();
+    }
     this.triggerStyleRefresh();
   }
 
@@ -38,10 +51,56 @@ export class FolderNoteManager extends BaseManager {
       }),
     );
 
-    // Register click event listener on the active document
-    this.plugin.registerDomEvent(activeDocument, 'click', this.onClick, {
-      capture: true,
-    });
+    this.rebuildFolderNotePathsCache();
+
+    // Register click event listener on the main window
+    window.addEventListener('click', this.onClick, { capture: true });
+    this.windows.add(window);
+
+    this.plugin.registerEvent(
+      this.plugin.app.workspace.on('window-open', this.windowOpenListener),
+    );
+
+    // Register file system events to update the folderNotePaths cache dynamically
+    this.plugin.registerEvent(
+      this.plugin.app.vault.on('create', (file) => {
+        if (!this.isEnabled()) return;
+        if (file instanceof TFile && this.isFolderNotePath(file.path)) {
+          this.folderNotePaths.add(file.path);
+          this.triggerStyleRefresh();
+        }
+      }),
+    );
+
+    this.plugin.registerEvent(
+      this.plugin.app.vault.on('delete', (file) => {
+        if (!this.isEnabled()) return;
+        if (file instanceof TFile && this.isFolderNotePath(file.path)) {
+          this.folderNotePaths.delete(file.path);
+          this.triggerStyleRefresh();
+        }
+      }),
+    );
+
+    this.plugin.registerEvent(
+      this.plugin.app.vault.on('rename', (file, oldPath) => {
+        if (!this.isEnabled()) return;
+        if (file instanceof TFile) {
+          let changed = false;
+          if (this.isFolderNotePath(oldPath)) {
+            this.folderNotePaths.delete(oldPath);
+            changed = true;
+          }
+          if (this.isFolderNotePath(file.path)) {
+            this.folderNotePaths.add(file.path);
+            changed = true;
+          }
+          if (changed) {
+            this.triggerStyleRefresh();
+          }
+        }
+      }),
+    );
 
     this.plugin.registerEvent(
       this.plugin.app.workspace.on('file-menu', (menu, folder) => {
@@ -77,11 +136,38 @@ export class FolderNoteManager extends BaseManager {
     if (this.frameId !== null) {
       window.cancelAnimationFrame(this.frameId);
     }
+    for (const win of this.windows) {
+      try {
+        win.removeEventListener('click', this.onClick, { capture: true });
+      } catch {
+        // ignore
+      }
+    }
+    this.windows.clear();
+    this.folderNotePaths.clear();
     this.clearFolderStyles();
   }
 
+  private windowOpenListener = (_win: WorkspaceWindow, win: Window) => {
+    if (!this.isEnabled()) return;
+    win.addEventListener('click', this.onClick, { capture: true });
+    this.windows.add(win);
+
+    const handleClose = () => {
+      try {
+        win.removeEventListener('click', this.onClick, { capture: true });
+        win.removeEventListener('unload', handleClose);
+      } catch {
+        // ignore
+      }
+      this.windows.delete(win);
+    };
+    win.addEventListener('unload', handleClose);
+  };
+
   private normalizeFolderPath(path: string): string {
-    return path === '/' ? '' : path;
+    const normalized = normalizePath(path);
+    return normalized === '/' ? '' : normalized;
   }
 
   private clearFolderStyles() {
@@ -241,10 +327,8 @@ export class FolderNoteManager extends BaseManager {
     if (!path) return;
 
     const folderPath = this.normalizeFolderPath(path);
-    const folder = this.plugin.app.vault.getAbstractFileByPath(
-      folderPath || '/',
-    );
-    if (!(folder instanceof TFolder)) return;
+    const folder = this.plugin.app.vault.getFolderByPath(folderPath || '/');
+    if (!folder) return;
 
     const noteFile = this.getFolderNoteFile(folder.path);
     if (noteFile) {
@@ -273,14 +357,13 @@ export class FolderNoteManager extends BaseManager {
     }
   }
 
-  private buildFolderNotePathSet(): Set<string> {
-    const set = new Set<string>();
+  private rebuildFolderNotePathsCache() {
+    this.folderNotePaths.clear();
     for (const file of this.plugin.app.vault.getFiles()) {
       if (this.isFolderNotePath(file.path)) {
-        set.add(file.path);
+        this.folderNotePaths.add(file.path);
       }
     }
-    return set;
   }
 
   private refreshFolderStyles(
@@ -314,8 +397,6 @@ export class FolderNoteManager extends BaseManager {
       targetFolders ?? container.querySelectorAll('.nav-folder'),
     );
 
-    const folderNotePathSet = this.buildFolderNotePathSet();
-
     folderElements.forEach((el) => {
       const titleEl = el.querySelector(':scope > .nav-folder-title');
       if (!titleEl) return;
@@ -331,7 +412,7 @@ export class FolderNoteManager extends BaseManager {
         const prefix = `${normalizedPath}/`;
         for (const ext of SUPPORTED_EXTENSIONS) {
           const potentialPath = `${prefix}${folderName}.${ext}`;
-          if (folderNotePathSet.has(potentialPath)) {
+          if (this.folderNotePaths.has(potentialPath)) {
             hasNote = true;
             break;
           }
@@ -366,10 +447,8 @@ export class FolderNoteManager extends BaseManager {
 
   getFolderNoteFile(folderPath: string): TFile | null {
     const normalized = this.normalizeFolderPath(folderPath);
-    const folder = this.plugin.app.vault.getAbstractFileByPath(
-      normalized || '/',
-    );
-    if (!(folder instanceof TFolder)) return null;
+    const folder = this.plugin.app.vault.getFolderByPath(normalized || '/');
+    if (!folder) return null;
 
     const folderName = folder.name;
     if (!normalized || folderName === '/') return null;
@@ -377,18 +456,16 @@ export class FolderNoteManager extends BaseManager {
     const prefix = normalized ? `${normalized}/` : '';
     for (const ext of SUPPORTED_EXTENSIONS) {
       const potentialPath = `${prefix}${folderName}.${ext}`;
-      const file = this.plugin.app.vault.getAbstractFileByPath(potentialPath);
-      if (file instanceof TFile) return file;
+      const file = this.plugin.app.vault.getFileByPath(potentialPath);
+      if (file) return file;
     }
     return null;
   }
 
   async createNewFolderNote(folderPath: string) {
     const normalized = this.normalizeFolderPath(folderPath);
-    const folder = this.plugin.app.vault.getAbstractFileByPath(
-      normalized || '/',
-    );
-    if (!(folder instanceof TFolder)) return;
+    const folder = this.plugin.app.vault.getFolderByPath(normalized || '/');
+    if (!folder) return;
 
     const folderName = folder.name;
     if (!normalized || folderName === '/') return;
