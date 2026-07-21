@@ -4,12 +4,6 @@ import { BaseManager } from './base';
 import { DEFAULT_SETTINGS } from '../settings';
 import { showError, clearError } from '../utils/ui';
 
-interface AugmentedWheelEvent extends WheelEvent {
-  path?: Element[];
-  wheelDeltaY?: number;
-  wheelDeltaX?: number;
-}
-
 export class ScrollManager extends BaseManager {
   private windows: Set<Window> = new Set();
   private rafId: number | null = null;
@@ -72,14 +66,11 @@ export class ScrollManager extends BaseManager {
     win.addEventListener('unload', handleClose);
   };
 
-  private scrollListener = (event: AugmentedWheelEvent) => {
+  private scrollListener = (event: WheelEvent) => {
     if (!this.isEnabled()) return;
     event.preventDefault();
 
-    const path =
-      event.path ||
-      (event.composedPath && (event.composedPath() as Element[])) ||
-      [];
+    const path = (event.composedPath?.() as Element[]) || [];
 
     const speed = this.plugin.settings.scrollSpeed;
 
@@ -98,12 +89,12 @@ export class ScrollManager extends BaseManager {
     }
   };
 
-  private scrollWithoutAnimation(event: AugmentedWheelEvent, speed: number) {
+  private scrollWithoutAnimation(event: WheelEvent, speed: number) {
     if (!this.target) return;
     this.target.scrollBy(event.deltaX * speed, event.deltaY * speed);
   }
 
-  private scrollWithAnimation(event: AugmentedWheelEvent, speed: number) {
+  private scrollWithAnimation(event: WheelEvent, speed: number) {
     if (!this.target) return;
 
     if (!this.isMoving) {
@@ -175,7 +166,7 @@ export class ScrollManager extends BaseManager {
     }
   }
 
-  private isScrollable(element: Element, event: AugmentedWheelEvent) {
+  private isScrollable(element: Element, event: WheelEvent) {
     const isHorizontal = event.deltaX !== 0 && event.deltaY === 0;
 
     return (
@@ -198,16 +189,8 @@ export class ScrollManager extends BaseManager {
     return /^(scroll|auto)$/.test(overflow);
   }
 
-  private isTrackPadUsed(event: AugmentedWheelEvent) {
-    let isTrackPad = false;
-    if (event.wheelDeltaY !== undefined) {
-      if (event.wheelDeltaY === event.deltaY * -3) {
-        isTrackPad = true;
-      }
-    } else if (event.deltaMode === 0) {
-      isTrackPad = true;
-    }
-    return isTrackPad;
+  private isTrackPadUsed(event: WheelEvent) {
+    return event.deltaMode === 0;
   }
 
   renderSettings(containerEl: HTMLElement) {

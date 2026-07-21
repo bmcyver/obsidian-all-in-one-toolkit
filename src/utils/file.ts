@@ -1,4 +1,4 @@
-import type { App } from 'obsidian';
+import { type App, normalizePath } from 'obsidian';
 
 /**
  * Ensures that all directories in the given file path exist.
@@ -8,7 +8,8 @@ export async function ensureDirectoryExists(
   app: App,
   filePath: string,
 ): Promise<void> {
-  const parts = filePath.split('/').filter((p) => p);
+  const normalized = normalizePath(filePath);
+  const parts = normalized.split('/').filter((p) => p);
   if (parts.length <= 1) return;
 
   // Remove filename
