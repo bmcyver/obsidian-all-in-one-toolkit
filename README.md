@@ -17,8 +17,6 @@
 
 주간, 월간, 연간 노트를 생성합니다.
 
-- 생성 위치는 하드코딩되어 있어 수정이 불가능합니다.
-
 <small>명령어 팔레트를 통해서만 사용 가능합니다.</small>
 
 ### 3. Flder Notes
@@ -49,6 +47,24 @@ EJS를 활용한 템플릿 엔진입니다.
 - 템플릿 폴더를 지정할 수 있습니다.
 - regex 기반 파일 매칭 기능을 지원합니다.
 - 신뢰된 템플릿만 실행될 수 있는 기능을 지원합니다.
+
+## How to install
+
+### 1. Github Releases
+
+[Github Releases](github.com/bmcyver/obsidian-all-in-one-toolkit/releases/latest) 에서 `main.js`, `manifest.json`, `styles.css`를 다운로드 받고 `.obsidian/plugins/obsidian-all-in-one-toolkit-bmcyver`에 저장합니다.
+
+### 2. Build from source
+
+```bash
+git clone https://github.com/bmcyver/obsidian-all-in-one-toolkit.git && cd obsidian-all-in-one-toolkit
+pnpm install --frozen-lockfile
+pnpm run build
+```
+
+를 실행한 뒤 `main.js`, `manifest.json`, `styles.css`를 `.obsidian/plugins/obsidian-all-in-one-toolkit-bmcyver`에 저장합니다.
+
+[Image to WebP](#1-image-to-webp)의 heic 포맷 지원을 원하는 경우 [esbuild.config.mjs](./esbuild.config.mjs#L6)의 `INCLUDE_HEIC`를 `true`로 설정합니다.
 
 ## Credits
 
