@@ -57,8 +57,7 @@ export class TrashManagerModal extends Modal {
   constructor(app: App, plugin: AllInOneToolkitPlugin) {
     super(app);
     this.plugin = plugin;
-    this.trashManager =
-      plugin.getManager(TrashManager) || new TrashManager(plugin);
+    this.trashManager = plugin.getManager(TrashManager)!;
   }
 
   async onOpen() {
@@ -240,7 +239,10 @@ export class TrashManagerModal extends Modal {
     try {
       const uniquePath = await this.trashManager.restoreItem(item);
       new Notice(`복구 완료: ${uniquePath}`);
-      await this.loadItems();
+      this.items = this.items.filter((i) => i.path !== item.path);
+      this.updateStats();
+      this.currentPage = 1;
+      this.filterAndRender(true);
     } catch (err) {
       new Notice(`복구 실패: ${(err as Error).message}`);
     }
@@ -250,7 +252,10 @@ export class TrashManagerModal extends Modal {
     try {
       await this.trashManager.deleteItem(item);
       new Notice(`영구 삭제 완료: ${item.name}`);
-      await this.loadItems();
+      this.items = this.items.filter((i) => i.path !== item.path);
+      this.updateStats();
+      this.currentPage = 1;
+      this.filterAndRender(true);
     } catch (err) {
       new Notice(`삭제 실패: ${(err as Error).message}`);
     }

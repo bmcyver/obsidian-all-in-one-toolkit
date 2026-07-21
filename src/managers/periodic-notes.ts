@@ -3,7 +3,7 @@ import { ensureDirectoryExists, isValidPath } from '../utils/file';
 import { BaseManager } from './base';
 import { FolderSuggest } from '../ui/folder-suggest';
 import { DEFAULT_SETTINGS } from '../settings';
-import { showError, clearError } from '../utils/ui';
+import { showError, clearError, addErrorContainer } from '../utils/ui';
 
 const PATH_PATTERNS = {
   weekly: (folder: string, year: string, week: string) =>
@@ -113,11 +113,8 @@ export class PeriodicNotesManager extends BaseManager {
       .setDesc(
         '주기적 노트(주간/월간/연간)가 생성 및 저장될 폴더 경로를 설정합니다.',
       );
-    folderSetting.settingEl.addClass('has-error-container');
 
-    const folderErrorEl = folderSetting.settingEl.createDiv({
-      cls: 'setting-item-error is-hidden',
-    });
+    const folderErrorEl = addErrorContainer(folderSetting);
 
     folderSetting.addText((text) => {
       new FolderSuggest(this.plugin.app, text.inputEl);

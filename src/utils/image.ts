@@ -17,6 +17,8 @@ export const SUPPORTED_IMAGE_EXTENSIONS = Object.keys(MIME_BY_EXTENSION);
 
 export const CONVERTED_NAME_REGEX = /.+-\d+\.(webp|avif)$/i;
 
+declare const __INCLUDE_HEIC__: boolean;
+
 let heicDecode: typeof HeicDecode | null = null;
 
 export function getExtension(file: File | string): string {
@@ -34,7 +36,13 @@ export function isAvifFile(file: File | string): boolean {
 }
 
 export function isValidImageFile(file: File): boolean {
-  if (isHeicFile(file)) return true;
+  if (isHeicFile(file)) {
+    if (!__INCLUDE_HEIC__) {
+      new Notice('HEIC conversion is not supported in this build.');
+      return false;
+    }
+    return true;
+  }
   if (!file.type.startsWith('image/')) return false;
   if (!SUPPORTED_IMAGE_TYPES.includes(file.type)) {
     new Notice('Only JPEG, PNG, WebP, AVIF, and HEIC are supported.');
@@ -54,6 +62,9 @@ export async function toWebP(
   let decoded: Awaited<ReturnType<typeof HeicDecode>> | null = null;
 
   if (isHeicFile(file)) {
+    if (!__INCLUDE_HEIC__) {
+      throw new Error('HEIC conversion is not supported in this build.');
+    }
     const heicData = new Uint8Array(await file.arrayBuffer());
     if (!heicDecode) {
       heicDecode = (await import('heic-decode')).default;

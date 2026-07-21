@@ -2,7 +2,7 @@ import { Platform, Setting, TextComponent } from 'obsidian';
 import type { WorkspaceWindow } from 'obsidian';
 import { BaseManager } from './base';
 import { DEFAULT_SETTINGS } from '../settings';
-import { showError, clearError } from '../utils/ui';
+import { showError, clearError, addErrorContainer } from '../utils/ui';
 
 export class ScrollManager extends BaseManager {
   private windows: Set<Window> = new Set();
@@ -76,7 +76,14 @@ export class ScrollManager extends BaseManager {
 
     for (const element of path) {
       if (this.isScrollable(element, event)) {
-        this.target = element;
+        if (this.target !== element) {
+          if (this.rafId !== null) {
+            window.cancelAnimationFrame(this.rafId);
+            this.rafId = null;
+          }
+          this.isMoving = false;
+          this.target = element;
+        }
 
         if (this.isTrackPadUsed(event)) {
           this.scrollWithoutAnimation(event, speed);
@@ -119,7 +126,7 @@ export class ScrollManager extends BaseManager {
     }
   }
 
-  private updateScrollAnimation() {
+  private updateScrollAnimation = () => {
     if (!this.isMoving || !this.target) {
       return this.stopScrollAnimation();
     }
@@ -152,14 +159,16 @@ export class ScrollManager extends BaseManager {
       return this.stopScrollAnimation();
     }
 
-    this.rafId = window.requestAnimationFrame(
-      this.updateScrollAnimation.bind(this),
-    );
-  }
+    this.rafId = window.requestAnimationFrame(this.updateScrollAnimation);
+  };
 
   private stopScrollAnimation() {
     this.isMoving = false;
     this.scrollDistance = 0;
+    if (this.rafId !== null) {
+      window.cancelAnimationFrame(this.rafId);
+      this.rafId = null;
+    }
     if (this.target) {
       this.positionY = this.target.scrollTop;
       this.target = undefined;
@@ -214,11 +223,8 @@ export class ScrollManager extends BaseManager {
     const speedSetting = new Setting(detailEl)
       .setName('마우스 스크롤 속도')
       .setDesc('마우스 휠 스크롤 속도를 조절합니다 (0.05 ~ 2).');
-    speedSetting.settingEl.addClass('has-error-container');
 
-    const speedErrorEl = speedSetting.settingEl.createDiv({
-      cls: 'setting-item-error is-hidden',
-    });
+    const speedErrorEl = addErrorContainer(speedSetting);
 
     speedSetting
       .addExtraButton((button) => {

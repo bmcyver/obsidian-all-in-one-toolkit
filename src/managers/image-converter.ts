@@ -16,7 +16,7 @@ import {
 import { BaseManager } from './base';
 import { FolderSuggest } from '../ui/folder-suggest';
 import { DEFAULT_SETTINGS } from '../settings';
-import { showError, clearError } from '../utils/ui';
+import { showError, clearError, addErrorContainer } from '../utils/ui';
 
 export class ImageConverterManager extends BaseManager {
   protected isEnabled(): boolean {
@@ -314,11 +314,8 @@ export class ImageConverterManager extends BaseManager {
       .setDesc(
         '변환될 WebP 이미지의 품질을 설정합니다 (0-100). 품질이 높을수록 파일 크기가 커집니다.',
       );
-    qualitySetting.settingEl.addClass('has-error-container');
 
-    const qualityErrorEl = qualitySetting.settingEl.createDiv({
-      cls: 'setting-item-error is-hidden',
-    });
+    const qualityErrorEl = addErrorContainer(qualitySetting);
 
     qualitySetting.addText((text) => {
       text.inputEl.type = 'number';
@@ -349,11 +346,8 @@ export class ImageConverterManager extends BaseManager {
     const pathSetting = new Setting(detailEl)
       .setName('WebP 이미지 저장 경로')
       .setDesc('변환된 WebP 이미지를 저장할 폴더 경로를 설정합니다.');
-    pathSetting.settingEl.addClass('has-error-container');
 
-    const pathErrorEl = pathSetting.settingEl.createDiv({
-      cls: 'setting-item-error is-hidden',
-    });
+    const pathErrorEl = addErrorContainer(pathSetting);
 
     pathSetting.addText((text) => {
       new FolderSuggest(this.plugin.app, text.inputEl);

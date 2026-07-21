@@ -16,7 +16,7 @@ import { BaseManager } from './base';
 import { FolderSuggest, FileSuggest } from '../ui/folder-suggest';
 import { DEFAULT_SETTINGS } from '../settings';
 import { stripFolderPrefix, isValidPath } from '../utils/file';
-import { showError, clearError } from '../utils/ui';
+import { showError, clearError, addErrorContainer } from '../utils/ui';
 
 const EJS_ALLOWED_HASHES_KEY = 'ejs-allowed-hashes';
 
@@ -37,6 +37,7 @@ export class EjsManager extends BaseManager {
   private compiledRules: Array<{ regex: RegExp; templatePath: string } | null> =
     [];
   private securityQueue: Promise<void> = Promise.resolve();
+  private allowedHashesCache: Record<string, string> | null = null;
 
   protected isEnabled(): boolean {
     return this.plugin.settings.ejsEnabled;
@@ -94,6 +95,33 @@ export class EjsManager extends BaseManager {
         return null;
       }
     });
+  }
+
+  private getAllowedHashes(): Record<string, string> {
+    if (this.allowedHashesCache !== null) {
+      return this.allowedHashesCache;
+    }
+    const raw = this.plugin.app.loadLocalStorage(
+      EJS_ALLOWED_HASHES_KEY,
+    ) as unknown;
+    this.allowedHashesCache =
+      typeof raw === 'string'
+        ? (JSON.parse(raw) as Record<string, string>)
+        : {};
+    return this.allowedHashesCache;
+  }
+
+  private saveAllowedHashes(hashes: Record<string, string>): void {
+    this.allowedHashesCache = hashes;
+    this.plugin.app.saveLocalStorage(
+      EJS_ALLOWED_HASHES_KEY,
+      JSON.stringify(hashes),
+    );
+  }
+
+  private clearAllowedHashes(): void {
+    this.allowedHashesCache = {};
+    this.plugin.app.saveLocalStorage(EJS_ALLOWED_HASHES_KEY, '');
   }
 
   private async handleFileCreate(file: TAbstractFile) {
@@ -226,16 +254,7 @@ export class EjsManager extends BaseManager {
     return new Promise<boolean>((resolve) => {
       this.securityQueue = this.securityQueue
         .then(async () => {
-          const allowedHashesRaw = this.plugin.app.loadLocalStorage(
-            EJS_ALLOWED_HASHES_KEY,
-          ) as unknown;
-          const allowedHashes =
-            typeof allowedHashesRaw === 'string'
-              ? (JSON.parse(allowedHashesRaw) as unknown as Record<
-                  string,
-                  string
-                >)
-              : {};
+          const allowedHashes = this.getAllowedHashes();
 
           const isAllowed = allowedHashes[templatePath] === calculatedHash;
           if (isAllowed) {
@@ -253,22 +272,9 @@ export class EjsManager extends BaseManager {
             return;
           }
 
-          const latestAllowedHashesRaw = this.plugin.app.loadLocalStorage(
-            EJS_ALLOWED_HASHES_KEY,
-          ) as unknown;
-          const latestAllowedHashes =
-            typeof latestAllowedHashesRaw === 'string'
-              ? (JSON.parse(latestAllowedHashesRaw) as unknown as Record<
-                  string,
-                  string
-                >)
-              : {};
-
+          const latestAllowedHashes = this.getAllowedHashes();
           latestAllowedHashes[templatePath] = calculatedHash;
-          this.plugin.app.saveLocalStorage(
-            EJS_ALLOWED_HASHES_KEY,
-            JSON.stringify(latestAllowedHashes),
-          );
+          this.saveAllowedHashes(latestAllowedHashes);
           new Notice(`EJS 템플릿 해시가 승인되었습니다: ${templatePath}`);
           resolve(true);
         })
@@ -325,6 +331,109 @@ export class EjsManager extends BaseManager {
       });
   }
 
+  private async updateStatusArea(
+    rule: { pattern: string; templatePath: string },
+    statusAreaEl: HTMLElement,
+    errorMsgEl: HTMLElement,
+  ) {
+    statusAreaEl.empty();
+    clearError(errorMsgEl);
+
+    // 1. Regex validation check
+    if (!rule.pattern) {
+      const badge = statusAreaEl.createDiv('ejs-rule-status-icon missing');
+      badge.setAttribute('title', '정규식 패턴 미입력');
+      setIcon(badge, 'alert-circle');
+
+      showError(errorMsgEl, '정규식 패턴이 입력되지 않았습니다.');
+      return;
+    }
+
+    if (!this.validateRegex(rule.pattern)) {
+      const badge = statusAreaEl.createDiv('ejs-rule-status-icon missing');
+      badge.setAttribute('title', '올바르지 않은 정규식 패턴입니다.');
+      setIcon(badge, 'alert-circle');
+
+      showError(errorMsgEl, '올바르지 않은 정규식 패턴입니다.');
+      return;
+    }
+
+    // 2. Path validation check
+    if (!rule.templatePath) {
+      const badge = statusAreaEl.createDiv('ejs-rule-status-icon missing');
+      badge.setAttribute('title', '경로 미입력');
+      setIcon(badge, 'x');
+
+      showError(errorMsgEl, '템플릿 파일 경로가 입력되지 않았습니다.');
+      return;
+    }
+
+    const fullPath = this.getFullTemplatePath(rule.templatePath);
+
+    const file = this.plugin.app.vault.getFileByPath(fullPath);
+    if (!file) {
+      const badge = statusAreaEl.createDiv('ejs-rule-status-icon missing');
+      badge.setAttribute('title', '파일 없음');
+      setIcon(badge, 'x');
+
+      showError(
+        errorMsgEl,
+        `지정된 경로에 템플릿 파일이 존재하지 않습니다: ${fullPath}`,
+      );
+      return;
+    }
+
+    try {
+      const content = await this.plugin.app.vault.read(file);
+      const calculatedHash = await this.calculateSHA256(content);
+
+      const allowedHashes = this.getAllowedHashes();
+      const isAllowed = allowedHashes[fullPath] === calculatedHash;
+
+      if (isAllowed) {
+        const badge = statusAreaEl.createDiv('ejs-rule-status-icon approved');
+        badge.setAttribute('title', '실행 승인됨');
+        setIcon(badge, 'check');
+      } else {
+        const badge = statusAreaEl.createDiv('ejs-rule-status-icon pending');
+        badge.setAttribute('title', '승인 대기중');
+        setIcon(badge, 'alert-triangle');
+
+        showError(
+          errorMsgEl,
+          '보안 승인이 필요합니다. 우측의 체크 아이콘을 눌러 승인해 주세요.',
+        );
+
+        // Quick Approve Button
+        const approveBtn = statusAreaEl.createEl('button', {
+          cls: 'ejs-rule-btn btn-approve-quick',
+          title: '즉시 승인',
+        });
+        setIcon(approveBtn, 'check-square');
+        approveBtn.addEventListener('click', () => {
+          void (async () => {
+            const latestAllowedHashes = this.getAllowedHashes();
+            latestAllowedHashes[fullPath] = calculatedHash;
+            this.saveAllowedHashes(latestAllowedHashes);
+            new Notice(
+              `EJS 템플릿이 즉시 승인되었습니다: ${rule.templatePath}`,
+            );
+            await this.updateStatusArea(rule, statusAreaEl, errorMsgEl);
+          })();
+        });
+      }
+    } catch (err) {
+      const badge = statusAreaEl.createDiv('ejs-rule-status-icon missing');
+      badge.setAttribute('title', '해시 에러');
+      setIcon(badge, 'x');
+
+      showError(
+        errorMsgEl,
+        `템플릿 무결성 해시 분석 중 오류가 발생했습니다: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
   private renderRuleItem(
     listEl: HTMLElement,
     rule: { pattern: string; templatePath: string },
@@ -343,149 +452,31 @@ export class EjsManager extends BaseManager {
     // 5. Error Message Element (Placed below mainRowEl inside padding)
     const errorMsgEl = ruleEl.createDiv('ejs-rule-error-msg is-hidden');
 
-    const updateStatusArea = async () => {
-      statusAreaEl.empty();
-      clearError(errorMsgEl);
-
-      // 1. Regex validation check
-      if (!rule.pattern) {
-        const badge = statusAreaEl.createDiv('ejs-rule-status-icon missing');
-        badge.setAttribute('title', '정규식 패턴 미입력');
-        setIcon(badge, 'alert-circle');
-
-        showError(errorMsgEl, '정규식 패턴이 입력되지 않았습니다.');
-        return;
-      }
-
-      if (!this.validateRegex(rule.pattern)) {
-        const badge = statusAreaEl.createDiv('ejs-rule-status-icon missing');
-        badge.setAttribute('title', '올바르지 않은 정규식 패턴입니다.');
-        setIcon(badge, 'alert-circle');
-
-        showError(errorMsgEl, '올바르지 않은 정규식 패턴입니다.');
-        return;
-      }
-
-      // 2. Path validation check
-      if (!rule.templatePath) {
-        const badge = statusAreaEl.createDiv('ejs-rule-status-icon missing');
-        badge.setAttribute('title', '경로 미입력');
-        setIcon(badge, 'x');
-
-        showError(errorMsgEl, '템플릿 파일 경로가 입력되지 않았습니다.');
-        return;
-      }
-
-      const fullPath = this.getFullTemplatePath(rule.templatePath);
-
-      const file = this.plugin.app.vault.getFileByPath(fullPath);
-      if (!file) {
-        const badge = statusAreaEl.createDiv('ejs-rule-status-icon missing');
-        badge.setAttribute('title', '파일 없음');
-        setIcon(badge, 'x');
-
-        showError(
-          errorMsgEl,
-          `지정된 경로에 템플릿 파일이 존재하지 않습니다: ${fullPath}`,
-        );
-        return;
-      }
-
-      try {
-        const content = await this.plugin.app.vault.read(file);
-        const calculatedHash = await this.calculateSHA256(content);
-
-        const allowedHashesRaw = this.plugin.app.loadLocalStorage(
-          EJS_ALLOWED_HASHES_KEY,
-        ) as unknown;
-        const allowedHashes =
-          typeof allowedHashesRaw === 'string'
-            ? (JSON.parse(allowedHashesRaw) as unknown as Record<
-                string,
-                string
-              >)
-            : {};
-
-        const isAllowed = allowedHashes[fullPath] === calculatedHash;
-
-        if (isAllowed) {
-          const badge = statusAreaEl.createDiv('ejs-rule-status-icon approved');
-          badge.setAttribute('title', '실행 승인됨');
-          setIcon(badge, 'check');
-        } else {
-          const badge = statusAreaEl.createDiv('ejs-rule-status-icon pending');
-          badge.setAttribute('title', '승인 대기중');
-          setIcon(badge, 'alert-triangle');
-
-          showError(
-            errorMsgEl,
-            '보안 승인이 필요합니다. 우측의 체크 아이콘을 눌러 승인해 주세요.',
-          );
-
-          // Quick Approve Button
-          const approveBtn = statusAreaEl.createEl('button', {
-            cls: 'ejs-rule-btn btn-approve-quick',
-            title: '즉시 승인',
-          });
-          setIcon(approveBtn, 'check-square');
-          approveBtn.addEventListener('click', () => {
-            void (async () => {
-              const latestAllowedHashesRaw = this.plugin.app.loadLocalStorage(
-                EJS_ALLOWED_HASHES_KEY,
-              ) as unknown;
-              const latestAllowedHashes =
-                typeof latestAllowedHashesRaw === 'string'
-                  ? (JSON.parse(latestAllowedHashesRaw) as unknown as Record<
-                      string,
-                      string
-                    >)
-                  : {};
-              latestAllowedHashes[fullPath] = calculatedHash;
-              this.plugin.app.saveLocalStorage(
-                EJS_ALLOWED_HASHES_KEY,
-                JSON.stringify(latestAllowedHashes),
-              );
-              new Notice(
-                `EJS 템플릿이 즉시 승인되었습니다: ${rule.templatePath}`,
-              );
-              await updateStatusArea();
-            })();
-          });
-        }
-      } catch (err) {
-        const badge = statusAreaEl.createDiv('ejs-rule-status-icon missing');
-        badge.setAttribute('title', '해시 에러');
-        setIcon(badge, 'x');
-
-        showError(
-          errorMsgEl,
-          `템플릿 무결성 해시 분석 중 오류가 발생했습니다: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
-    };
+    const triggerUpdate = () =>
+      this.updateStatusArea(rule, statusAreaEl, errorMsgEl);
 
     // 2. Pattern Input
-    this.createPatternInput(mainRowEl, rule, updateStatusArea);
+    this.createPatternInput(mainRowEl, rule, triggerUpdate);
 
     // 3. Template Path Wrapper
     this.createTemplatePathInput(
       mainRowEl,
       rule,
       templatesFolder,
-      updateStatusArea,
+      triggerUpdate,
     );
 
     // 4. Control Buttons
     this.createControlButtons(mainRowEl, idx, rulesContainer);
 
     // Trigger initial status check (asynchronous)
-    void updateStatusArea();
+    void triggerUpdate();
   }
 
   private createPatternInput(
     mainRowEl: HTMLElement,
     rule: { pattern: string; templatePath: string },
-    updateStatusArea: () => Promise<void>,
+    triggerUpdate: () => Promise<void>,
   ) {
     const patternInput = mainRowEl.createEl('input', {
       type: 'text',
@@ -518,7 +509,7 @@ export class EjsManager extends BaseManager {
         await this.plugin.saveSettings();
         this.recompileRules();
         checkRegexValidity();
-        await updateStatusArea();
+        await triggerUpdate();
       })();
     });
 
@@ -530,7 +521,7 @@ export class EjsManager extends BaseManager {
     mainRowEl: HTMLElement,
     rule: { pattern: string; templatePath: string },
     templatesFolder: string,
-    updateStatusArea: () => Promise<void>,
+    triggerUpdate: () => Promise<void>,
   ) {
     const pathWrapper = mainRowEl.createDiv('ejs-template-path-wrapper');
 
@@ -553,7 +544,7 @@ export class EjsManager extends BaseManager {
         rule.templatePath = saveVal;
         await this.plugin.saveSettings();
         this.recompileRules();
-        await updateStatusArea();
+        await triggerUpdate();
       })();
     };
 
@@ -646,11 +637,8 @@ export class EjsManager extends BaseManager {
     const folderSetting = new Setting(detailEl)
       .setName('EJS 템플릿 폴더')
       .setDesc('EJS 템플릿 파일이 저장된 폴더 경로입니다.');
-    folderSetting.settingEl.addClass('has-error-container');
 
-    const folderErrorEl = folderSetting.settingEl.createDiv({
-      cls: 'setting-item-error is-hidden',
-    });
+    const folderErrorEl = addErrorContainer(folderSetting);
 
     folderSetting.addText((text) => {
       new FolderSuggest(this.plugin.app, text.inputEl);
@@ -698,7 +686,7 @@ export class EjsManager extends BaseManager {
       )
       .addButton((button) => {
         button.setButtonText('해시 초기화').onClick(() => {
-          this.plugin.app.saveLocalStorage(EJS_ALLOWED_HASHES_KEY, '');
+          this.clearAllowedHashes();
           new Notice('모든 EJS 템플릿 해시가 성공적으로 초기화되었습니다.');
           // Re-render status badges
           this.renderRules(rulesContainer);
