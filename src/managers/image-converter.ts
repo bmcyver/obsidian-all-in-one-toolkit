@@ -16,9 +16,17 @@ import {
 import { BaseManager } from './base';
 import { FolderSuggest } from '../ui/folder-suggest';
 import { DEFAULT_SETTINGS } from '../settings';
-import { showError, clearError, addErrorContainer } from '../utils/ui';
+import {
+  showError,
+  clearError,
+  addErrorContainer,
+  createToggleSection,
+} from '../utils/ui';
+import { limitConcurrency } from '../utils/async';
 
 export class ImageConverterManager extends BaseManager {
+  private assetPathCounter = 0;
+
   protected isEnabled(): boolean {
     return this.plugin.settings.imageConverterEnabled;
   }
@@ -27,7 +35,9 @@ export class ImageConverterManager extends BaseManager {
     const storePathSetting =
       this.plugin.settings.imageStorePath || DEFAULT_SETTINGS.imageStorePath;
     const resolvedFolder = window.moment().format(storePathSetting);
-    return `${resolvedFolder}/${normalizeFileName(basename)}-${Date.now()}.${extension}`;
+    this.assetPathCounter = (this.assetPathCounter + 1) % 10000;
+    const uniqueId = `${Date.now()}-${this.assetPathCounter}`;
+    return `${resolvedFolder}/${normalizeFileName(basename)}-${uniqueId}.${extension}`;
   }
 
   onload() {
@@ -63,18 +73,21 @@ export class ImageConverterManager extends BaseManager {
           if (!this.isEnabled()) return;
           if (!evt.clipboardData?.items || evt.defaultPrevented) return;
 
-          let file: File | null = null;
-          for (const item of evt.clipboardData.items) {
-            if (item.kind === 'file') {
-              file = item.getAsFile();
-              break;
+          const files: File[] = [];
+          for (let i = 0; i < evt.clipboardData.items.length; i++) {
+            const item = evt.clipboardData.items[i];
+            if (item?.kind === 'file') {
+              const file = item.getAsFile();
+              if (file && isValidImageFile(file)) {
+                files.push(file);
+              }
             }
           }
 
-          if (!file || !isValidImageFile(file)) return;
+          if (files.length === 0) return;
 
           evt.preventDefault();
-          void this.handleDropPasteEvent(file, editor);
+          void this.handleDropPasteEvents(files, editor);
           return true;
         },
       ),
@@ -86,13 +99,20 @@ export class ImageConverterManager extends BaseManager {
         'editor-drop',
         (evt: DragEvent, editor: Editor) => {
           if (!this.isEnabled()) return;
-          if (!evt.dataTransfer?.files?.[0] || evt.defaultPrevented) return;
+          if (!evt.dataTransfer?.files || evt.defaultPrevented) return;
 
-          const file = evt.dataTransfer.files[0];
-          if (!file || !isValidImageFile(file)) return;
+          const files: File[] = [];
+          for (let i = 0; i < evt.dataTransfer.files.length; i++) {
+            const file = evt.dataTransfer.files[i];
+            if (file && isValidImageFile(file)) {
+              files.push(file);
+            }
+          }
+
+          if (files.length === 0) return;
 
           evt.preventDefault();
-          void this.handleDropPasteEvent(file, editor);
+          void this.handleDropPasteEvents(files, editor);
           return true;
         },
       ),
@@ -208,8 +228,8 @@ export class ImageConverterManager extends BaseManager {
     }
   }
 
-  private async handleDropPasteEvent(
-    sourceFile: File,
+  private async handleDropPasteEvents(
+    sourceFiles: File[],
     editor: Editor,
   ): Promise<void> {
     const activeFile = this.plugin.app.workspace.getActiveFile();
@@ -218,34 +238,70 @@ export class ImageConverterManager extends BaseManager {
       return;
     }
 
-    const shouldSkipConversion = isAvifFile(sourceFile);
-    const destinationPath = this.buildAssetPath(
-      activeFile.basename,
-      shouldSkipConversion ? 'avif' : 'webp',
+    const createdFiles: {
+      file: TFile;
+      originalName: string;
+      originalSize: number;
+      skipped: boolean;
+    }[] = [];
+
+    const results = await limitConcurrency(
+      sourceFiles,
+      3,
+      async (sourceFile) => {
+        try {
+          const shouldSkipConversion = isAvifFile(sourceFile);
+          const destinationPath = this.buildAssetPath(
+            activeFile.basename,
+            shouldSkipConversion ? 'avif' : 'webp',
+          );
+
+          await ensureDirectoryExists(this.plugin.app, destinationPath);
+
+          const outputData = await this.convertImage(
+            sourceFile,
+            shouldSkipConversion,
+          );
+          const createdFile = await this.plugin.app.vault.createBinary(
+            destinationPath,
+            outputData,
+          );
+
+          return {
+            file: createdFile,
+            originalName: sourceFile.name,
+            originalSize: sourceFile.size,
+            skipped: shouldSkipConversion,
+          };
+        } catch (err) {
+          new Notice(`${sourceFile.name} 변환 실패: ${(err as Error).message}`);
+          return null;
+        }
+      },
     );
 
-    await ensureDirectoryExists(this.plugin.app, destinationPath);
+    const markdownLinks: string[] = [];
+    results.forEach((res) => {
+      if (res) {
+        createdFiles.push(res);
+        markdownLinks.push(`![[${res.file.path}]]`);
+      }
+    });
 
-    try {
-      const outputData = await this.convertImage(
-        sourceFile,
-        shouldSkipConversion,
-      );
-      const createdFile = await this.plugin.app.vault.createBinary(
-        destinationPath,
-        outputData,
-      );
+    if (markdownLinks.length > 0) {
+      editor.replaceSelection(markdownLinks.join('\n'));
+    }
 
-      editor.replaceSelection(`![[${createdFile.path}]]`);
-
+    if (createdFiles.length === 1 && createdFiles[0]) {
+      const single = createdFiles[0];
       this.showConversionNotice(
-        createdFile.basename,
-        sourceFile.size,
-        createdFile.stat.size,
-        shouldSkipConversion,
+        single.file.basename,
+        single.originalSize,
+        single.file.stat.size,
+        single.skipped,
       );
-    } catch (err) {
-      new Notice(`이미지 변환 실패: ${(err as Error).message}`);
+    } else if (createdFiles.length > 1) {
+      new Notice(`이미지 ${createdFiles.length}개 WebP 변환 및 첨부 완료`);
     }
   }
 
@@ -270,18 +326,25 @@ export class ImageConverterManager extends BaseManager {
       return;
     }
 
-    const results = await Promise.allSettled(
-      linkedImageFiles.map((imageFile) =>
-        this.handleFileMenuEvent(imageFile, noteFile.basename),
-      ),
+    const results = await limitConcurrency(
+      linkedImageFiles,
+      3,
+      async (imageFile) => {
+        try {
+          await this.handleFileMenuEvent(imageFile, noteFile.basename);
+          return { status: 'fulfilled' as const, file: imageFile };
+        } catch (reason) {
+          return { status: 'rejected' as const, file: imageFile, reason };
+        }
+      },
     );
+
     const successCount = results.filter((r) => r.status === 'fulfilled').length;
-    results.forEach((r, i) => {
+    results.forEach((r) => {
       if (r.status === 'rejected') {
-        const errorFile = linkedImageFiles[i];
         const errorMsg =
           r.reason instanceof Error ? r.reason.message : String(r.reason);
-        new Notice(`${errorFile?.name || '이미지'} 변환 실패: ${errorMsg}`);
+        new Notice(`${r.file.name} 변환 실패: ${errorMsg}`);
       }
     });
 
@@ -291,23 +354,15 @@ export class ImageConverterManager extends BaseManager {
   }
 
   renderSettings(containerEl: HTMLElement) {
-    new Setting(containerEl)
-      .setName('이미지 WebP 변환')
-      .setHeading()
-      .addToggle((toggle) => {
-        toggle
-          .setValue(this.plugin.settings.imageConverterEnabled)
-          .onChange(async (value) => {
-            this.plugin.settings.imageConverterEnabled = value;
-            await this.plugin.saveSettings();
-            detailEl.style.display = value ? '' : 'none';
-          });
-      });
-
-    const detailEl = containerEl.createDiv();
-    detailEl.style.display = this.plugin.settings.imageConverterEnabled
-      ? ''
-      : 'none';
+    const detailEl = createToggleSection(
+      containerEl,
+      '이미지 WebP 변환',
+      this.plugin.settings.imageConverterEnabled,
+      async (value) => {
+        this.plugin.settings.imageConverterEnabled = value;
+        await this.plugin.saveSettings();
+      },
+    );
 
     const qualitySetting = new Setting(detailEl)
       .setName('WebP 이미지 품질')

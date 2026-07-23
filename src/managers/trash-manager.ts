@@ -1,7 +1,8 @@
-import { Setting } from 'obsidian';
 import { ensureDirectoryExists } from '../utils/file';
 import { TrashManagerModal } from '../ui/trash-modal';
 import { BaseManager } from './base';
+import { limitConcurrency } from '../utils/async';
+import { createToggleSection } from '../utils/ui';
 
 export interface TrashFile {
   path: string; // e.g. ".trash/folder/note.md"
@@ -47,33 +48,13 @@ export class TrashManager extends BaseManager {
     return files;
   }
 
-  private async limitConcurrency<T, R>(
-    items: T[],
-    limit: number,
-    fn: (item: T) => Promise<R>,
-  ): Promise<R[]> {
-    const results: R[] = new Array<R>(items.length);
-    const iterator = items.entries();
-
-    const workers = Array(Math.min(limit, items.length))
-      .fill(null)
-      .map(async () => {
-        for (const [index, item] of iterator) {
-          results[index] = await fn(item);
-        }
-      });
-
-    await Promise.all(workers);
-    return results;
-  }
-
   private async collectTrashFiles(dir: string): Promise<TrashFile[]> {
     const adapter = this.plugin.app.vault.adapter;
     const list = await adapter.list(dir);
     const files: TrashFile[] = [];
 
     // Limit concurrency of stat() calls to 50 to avoid I/O bottlenecks
-    const stats = await this.limitConcurrency(list.files, 50, (f) =>
+    const stats = await limitConcurrency(list.files, 50, (f) =>
       adapter.stat(f),
     );
     list.files.forEach((file, i) => {
@@ -90,7 +71,7 @@ export class TrashManager extends BaseManager {
     });
 
     // Recursively collect folders in parallel (limited to 10 concurrently)
-    const folderFilesResults = await this.limitConcurrency(
+    const folderFilesResults = await limitConcurrency(
       list.folders,
       10,
       (folder) => this.collectTrashFiles(folder),
@@ -149,16 +130,14 @@ export class TrashManager extends BaseManager {
   }
 
   renderSettings(containerEl: HTMLElement) {
-    new Setting(containerEl)
-      .setName('휴지통 관리자')
-      .setHeading()
-      .addToggle((toggle) => {
-        toggle
-          .setValue(this.plugin.settings.trashManagerEnabled)
-          .onChange(async (value) => {
-            this.plugin.settings.trashManagerEnabled = value;
-            await this.plugin.saveSettings();
-          });
-      });
+    createToggleSection(
+      containerEl,
+      '휴지통 관리자',
+      this.plugin.settings.trashManagerEnabled,
+      async (value) => {
+        this.plugin.settings.trashManagerEnabled = value;
+        await this.plugin.saveSettings();
+      },
+    );
   }
 }

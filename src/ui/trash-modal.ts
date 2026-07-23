@@ -172,7 +172,10 @@ export class TrashManagerModal extends Modal {
     );
 
     for (let i = start; i < end; i++) {
-      this.renderTrashItem(this.listEl, this.filteredItems[i]!);
+      const item = this.filteredItems[i];
+      if (item) {
+        this.renderTrashItem(this.listEl, item);
+      }
     }
   }
 

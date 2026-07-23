@@ -25,3 +25,30 @@ export function addErrorContainer(setting: Setting): HTMLElement {
   setting.settingEl.addClass('has-error-container');
   return setting.settingEl.createDiv({ cls: 'setting-item-error is-hidden' });
 }
+
+/**
+ * Creates a standard toggle section with heading and detail container element.
+ */
+export function createToggleSection(
+  containerEl: HTMLElement,
+  title: string,
+  initialValue: boolean,
+  onToggle: (value: boolean) => Promise<void>,
+): HTMLElement {
+  const detailEl = containerEl.createDiv();
+  detailEl.style.display = initialValue ? '' : 'none';
+
+  new Setting(containerEl)
+    .setName(title)
+    .setHeading()
+    .addToggle((toggle) => {
+      toggle.setValue(initialValue).onChange((value) => {
+        void (async () => {
+          await onToggle(value);
+          detailEl.style.display = value ? '' : 'none';
+        })();
+      });
+    });
+
+  return detailEl;
+}

@@ -2,7 +2,12 @@ import { Platform, Setting, TextComponent } from 'obsidian';
 import type { WorkspaceWindow } from 'obsidian';
 import { BaseManager } from './base';
 import { DEFAULT_SETTINGS } from '../settings';
-import { showError, clearError, addErrorContainer } from '../utils/ui';
+import {
+  showError,
+  clearError,
+  addErrorContainer,
+  createToggleSection,
+} from '../utils/ui';
 
 export class ScrollManager extends BaseManager {
   private windows: Set<Window> = new Set();
@@ -203,21 +208,15 @@ export class ScrollManager extends BaseManager {
   }
 
   renderSettings(containerEl: HTMLElement) {
-    new Setting(containerEl)
-      .setName('마우스 스크롤 속도 조절')
-      .setHeading()
-      .addToggle((toggle) => {
-        toggle
-          .setValue(this.plugin.settings.scrollEnabled)
-          .onChange(async (value) => {
-            this.plugin.settings.scrollEnabled = value;
-            await this.plugin.saveSettings();
-            detailEl.style.display = value ? '' : 'none';
-          });
-      });
-
-    const detailEl = containerEl.createDiv();
-    detailEl.style.display = this.plugin.settings.scrollEnabled ? '' : 'none';
+    const detailEl = createToggleSection(
+      containerEl,
+      '마우스 스크롤 속도 조절',
+      this.plugin.settings.scrollEnabled,
+      async (value) => {
+        this.plugin.settings.scrollEnabled = value;
+        await this.plugin.saveSettings();
+      },
+    );
 
     let scrollSpeedText: TextComponent;
     const speedSetting = new Setting(detailEl)

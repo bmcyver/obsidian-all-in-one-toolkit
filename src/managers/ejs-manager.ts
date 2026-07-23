@@ -16,7 +16,12 @@ import { BaseManager } from './base';
 import { FolderSuggest, FileSuggest } from '../ui/folder-suggest';
 import { DEFAULT_SETTINGS } from '../settings';
 import { stripFolderPrefix, isValidPath } from '../utils/file';
-import { showError, clearError, addErrorContainer } from '../utils/ui';
+import {
+  showError,
+  clearError,
+  addErrorContainer,
+  createToggleSection,
+} from '../utils/ui';
 
 const EJS_ALLOWED_HASHES_KEY = 'ejs-allowed-hashes';
 
@@ -34,8 +39,7 @@ interface EjsRenderContext {
 }
 
 export class EjsManager extends BaseManager {
-  private compiledRules: Array<{ regex: RegExp; templatePath: string } | null> =
-    [];
+  private compiledRules: Array<{ regex: RegExp; templatePath: string }> = [];
   private securityQueue: Promise<void> = Promise.resolve();
   private allowedHashesCache: Record<string, string> | null = null;
 
@@ -83,18 +87,23 @@ export class EjsManager extends BaseManager {
   }
 
   private recompileRules() {
-    this.compiledRules = this.plugin.settings.ejsRules.map((rule) => {
-      if (!rule.pattern || !rule.templatePath) return null;
-      try {
-        return {
-          regex: new RegExp(rule.pattern),
-          templatePath: rule.templatePath,
-        };
-      } catch (err) {
-        console.error(`패턴 정규식 오류 "${rule.pattern}":`, err);
-        return null;
-      }
-    });
+    this.compiledRules = this.plugin.settings.ejsRules
+      .map((rule) => {
+        if (!rule.pattern || !rule.templatePath) return null;
+        try {
+          return {
+            regex: new RegExp(rule.pattern),
+            templatePath: rule.templatePath,
+          };
+        } catch (err) {
+          console.error(`패턴 정규식 오류 "${rule.pattern}":`, err);
+          return null;
+        }
+      })
+      .filter(
+        (rule): rule is { regex: RegExp; templatePath: string } =>
+          rule !== null,
+      );
   }
 
   private getAllowedHashes(): Record<string, string> {
@@ -131,7 +140,6 @@ export class EjsManager extends BaseManager {
 
     let matchedRule = null;
     for (const rule of this.compiledRules) {
-      if (!rule) continue;
       if (rule.regex.test(file.path)) {
         matchedRule = rule;
         break; // First match wins
@@ -569,13 +577,15 @@ export class EjsManager extends BaseManager {
       setIcon(upBtn, 'chevron-up');
       upBtn.addEventListener('click', () => {
         void (async () => {
-          const temp = this.plugin.settings.ejsRules[idx - 1]!;
-          this.plugin.settings.ejsRules[idx - 1] =
-            this.plugin.settings.ejsRules[idx]!;
-          this.plugin.settings.ejsRules[idx] = temp;
-          await this.plugin.saveSettings();
-          this.recompileRules();
-          this.renderRules(rulesContainer);
+          const current = this.plugin.settings.ejsRules[idx];
+          const target = this.plugin.settings.ejsRules[idx - 1];
+          if (current && target) {
+            this.plugin.settings.ejsRules[idx - 1] = current;
+            this.plugin.settings.ejsRules[idx] = target;
+            await this.plugin.saveSettings();
+            this.recompileRules();
+            this.renderRules(rulesContainer);
+          }
         })();
       });
     }
@@ -589,13 +599,15 @@ export class EjsManager extends BaseManager {
       setIcon(downBtn, 'chevron-down');
       downBtn.addEventListener('click', () => {
         void (async () => {
-          const temp = this.plugin.settings.ejsRules[idx + 1]!;
-          this.plugin.settings.ejsRules[idx + 1] =
-            this.plugin.settings.ejsRules[idx]!;
-          this.plugin.settings.ejsRules[idx] = temp;
-          await this.plugin.saveSettings();
-          this.recompileRules();
-          this.renderRules(rulesContainer);
+          const current = this.plugin.settings.ejsRules[idx];
+          const target = this.plugin.settings.ejsRules[idx + 1];
+          if (current && target) {
+            this.plugin.settings.ejsRules[idx + 1] = current;
+            this.plugin.settings.ejsRules[idx] = target;
+            await this.plugin.saveSettings();
+            this.recompileRules();
+            this.renderRules(rulesContainer);
+          }
         })();
       });
     }
@@ -617,21 +629,15 @@ export class EjsManager extends BaseManager {
   }
 
   renderSettings(containerEl: HTMLElement) {
-    new Setting(containerEl)
-      .setName('EJS 템플릿')
-      .setHeading()
-      .addToggle((toggle) => {
-        toggle.setValue(this.plugin.settings.ejsEnabled).onChange((value) => {
-          void (async () => {
-            this.plugin.settings.ejsEnabled = value;
-            await this.plugin.saveSettings();
-            detailEl.style.display = value ? '' : 'none';
-          })();
-        });
-      });
-
-    const detailEl = containerEl.createDiv();
-    detailEl.style.display = this.plugin.settings.ejsEnabled ? '' : 'none';
+    const detailEl = createToggleSection(
+      containerEl,
+      'EJS 템플릿',
+      this.plugin.settings.ejsEnabled,
+      async (value) => {
+        this.plugin.settings.ejsEnabled = value;
+        await this.plugin.saveSettings();
+      },
+    );
 
     // 1. EJS 템플릿 폴더 설정을 맨 위로 배치
     const folderSetting = new Setting(detailEl)
