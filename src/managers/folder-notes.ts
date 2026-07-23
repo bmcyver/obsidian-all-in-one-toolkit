@@ -9,6 +9,7 @@ import {
 import type { WorkspaceWindow } from 'obsidian';
 import { splitFileName } from '../utils/file';
 import { BaseManager } from './base';
+import { createToggleSection } from '../utils/ui';
 
 export const SUPPORTED_EXTENSIONS = ['base', 'md', 'canvas'];
 const NAV_FILES_CONTAINER = '.nav-files-container';
@@ -498,23 +499,15 @@ export class FolderNoteManager extends BaseManager {
   }
 
   renderSettings(containerEl: HTMLElement) {
-    new Setting(containerEl)
-      .setName('폴더 노트')
-      .setHeading()
-      .addToggle((toggle) => {
-        toggle
-          .setValue(this.plugin.settings.folderNoteEnabled)
-          .onChange(async (value) => {
-            this.plugin.settings.folderNoteEnabled = value;
-            await this.plugin.saveSettings();
-            detailEl.style.display = value ? '' : 'none';
-          });
-      });
-
-    const detailEl = containerEl.createDiv();
-    detailEl.style.display = this.plugin.settings.folderNoteEnabled
-      ? ''
-      : 'none';
+    const detailEl = createToggleSection(
+      containerEl,
+      '폴더 노트',
+      this.plugin.settings.folderNoteEnabled,
+      async (value) => {
+        this.plugin.settings.folderNoteEnabled = value;
+        await this.plugin.saveSettings();
+      },
+    );
 
     new Setting(detailEl)
       .setName('기본 생성 확장자')

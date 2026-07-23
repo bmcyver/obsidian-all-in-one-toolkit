@@ -15,7 +15,7 @@ export const SUPPORTED_IMAGE_TYPES = Object.values(MIME_BY_EXTENSION);
 
 export const SUPPORTED_IMAGE_EXTENSIONS = Object.keys(MIME_BY_EXTENSION);
 
-export const CONVERTED_NAME_REGEX = /.+-\d+\.(webp|avif)$/i;
+export const CONVERTED_NAME_REGEX = /.+-\d+(?:-\d+)?\.(webp|avif)$/i;
 
 declare const __INCLUDE_HEIC__: boolean;
 

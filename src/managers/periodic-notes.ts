@@ -3,7 +3,12 @@ import { ensureDirectoryExists, isValidPath } from '../utils/file';
 import { BaseManager } from './base';
 import { FolderSuggest } from '../ui/folder-suggest';
 import { DEFAULT_SETTINGS } from '../settings';
-import { showError, clearError, addErrorContainer } from '../utils/ui';
+import {
+  showError,
+  clearError,
+  addErrorContainer,
+  createToggleSection,
+} from '../utils/ui';
 
 const PATH_PATTERNS = {
   weekly: (folder: string, year: string, week: string) =>
@@ -90,23 +95,15 @@ export class PeriodicNotesManager extends BaseManager {
   }
 
   renderSettings(containerEl: HTMLElement) {
-    new Setting(containerEl)
-      .setName('주기적 노트')
-      .setHeading()
-      .addToggle((toggle) => {
-        toggle
-          .setValue(this.plugin.settings.periodicNotesEnabled)
-          .onChange(async (value) => {
-            this.plugin.settings.periodicNotesEnabled = value;
-            await this.plugin.saveSettings();
-            detailEl.style.display = value ? '' : 'none';
-          });
-      });
-
-    const detailEl = containerEl.createDiv();
-    detailEl.style.display = this.plugin.settings.periodicNotesEnabled
-      ? ''
-      : 'none';
+    const detailEl = createToggleSection(
+      containerEl,
+      '주기적 노트',
+      this.plugin.settings.periodicNotesEnabled,
+      async (value) => {
+        this.plugin.settings.periodicNotesEnabled = value;
+        await this.plugin.saveSettings();
+      },
+    );
 
     const folderSetting = new Setting(detailEl)
       .setName('주기적 노트 저장 폴더')
