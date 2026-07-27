@@ -34,13 +34,7 @@
 
 <small>명령어 팔레트를 통해서만 사용 가능합니다.</small>
 
-### 5. Scroll Manager
-
-스크롤 속도를 조절할 수 있습니다.
-
-<small>desktop only</small>
-
-### 6. EJS Manager
+### 5. EJS Manager
 
 EJS를 활용한 템플릿 엔진입니다.
 
@@ -70,5 +64,4 @@ pnpm run build
 
 - https://github.com/xryul/obsidian-image-converter
 - https://github.com/LostPaul/obsidian-folder-notes
-- https://github.com/flolu/obsidian-scroll-speed
 - https://github.com/silentvoid13/Templater

@@ -3,7 +3,7 @@ import AllInOneToolkitPlugin from '../main';
 export abstract class BaseManager {
   private loaded = false;
 
-  constructor(protected readonly plugin: AllInOneToolkitPlugin) {}
+  constructor(public readonly plugin: AllInOneToolkitPlugin) {}
 
   abstract onload(): void;
 

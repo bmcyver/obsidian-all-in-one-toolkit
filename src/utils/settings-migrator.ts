@@ -70,11 +70,6 @@ export function migrateSettings(data: unknown): ToolkitSettings {
       'trashManagerEnabled',
       DEFAULT_SETTINGS.trashManagerEnabled,
     ),
-    scrollEnabled: getBoolean(
-      d,
-      'scrollEnabled',
-      DEFAULT_SETTINGS.scrollEnabled,
-    ),
     ejsEnabled: getBoolean(d, 'ejsEnabled', DEFAULT_SETTINGS.ejsEnabled),
 
     webpQuality,
@@ -84,7 +79,6 @@ export function migrateSettings(data: unknown): ToolkitSettings {
       DEFAULT_SETTINGS.imageStorePath,
     ),
     folderNoteExtension,
-    scrollSpeed: getNumber(d, 'scrollSpeed', DEFAULT_SETTINGS.scrollSpeed),
     ejsTemplatesFolder: getString(
       d,
       'ejsTemplatesFolder',

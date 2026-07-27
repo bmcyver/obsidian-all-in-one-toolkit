@@ -7,7 +7,6 @@ import { PeriodicNotesManager } from './managers/periodic-notes';
 import { FolderNoteManager } from './managers/folder-notes';
 import { ImageConverterManager } from './managers/image-converter';
 import { TrashManager } from './managers/trash-manager';
-import { ScrollManager } from './managers/scroll-manager';
 import { EjsManager } from './managers/ejs-manager';
 
 export default class AllInOneToolkitPlugin extends Plugin {
@@ -23,7 +22,6 @@ export default class AllInOneToolkitPlugin extends Plugin {
       new FolderNoteManager(this),
       new ImageConverterManager(this),
       new TrashManager(this),
-      new ScrollManager(this),
       new EjsManager(this),
     );
 
