@@ -3,13 +3,12 @@ import {
   TFile,
   type WorkspaceLeaf,
   Notice,
-  Setting,
   normalizePath,
 } from 'obsidian';
 import type { WorkspaceWindow } from 'obsidian';
 import { splitFileName } from '../utils/file';
 import { BaseManager } from './base';
-import { createToggleSection } from '../utils/ui';
+import { createToggleSection, addDropdownSetting } from '../utils/ui';
 
 export const SUPPORTED_EXTENSIONS = ['base', 'md', 'canvas'];
 const NAV_FILES_CONTAINER = '.nav-files-container';
@@ -509,20 +508,17 @@ export class FolderNoteManager extends BaseManager {
       },
     );
 
-    new Setting(detailEl)
-      .setName('기본 생성 확장자')
-      .setDesc(
-        '폴더 노트를 새로 생성할 때 사용할 기본 파일 확장자를 선택합니다.',
-      )
-      .addDropdown((dropdown) => {
-        SUPPORTED_EXTENSIONS.forEach((ext) => {
-          dropdown.addOption(ext, `.${ext}`);
-        });
-        dropdown.setValue(this.plugin.settings.folderNoteExtension);
-        dropdown.onChange(async (value) => {
-          this.plugin.settings.folderNoteExtension = value;
-          await this.plugin.saveSettings();
-        });
-      });
+    addDropdownSetting(detailEl, {
+      name: '기본 생성 확장자',
+      desc: '폴더 노트를 새로 생성할 때 사용할 기본 파일 확장자를 선택합니다.',
+      initialValue: this.plugin.settings.folderNoteExtension,
+      options: Object.fromEntries(
+        SUPPORTED_EXTENSIONS.map((ext) => [ext, `.${ext}`]),
+      ),
+      onChange: async (value) => {
+        this.plugin.settings.folderNoteExtension = value;
+        await this.plugin.saveSettings();
+      },
+    });
   }
 }

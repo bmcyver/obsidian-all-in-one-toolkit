@@ -1,14 +1,8 @@
-import { Setting } from 'obsidian';
 import { ensureDirectoryExists, isValidPath } from '../utils/file';
 import { BaseManager } from './base';
 import { FolderSuggest } from '../ui/folder-suggest';
 import { DEFAULT_SETTINGS } from '../settings';
-import {
-  showError,
-  clearError,
-  addErrorContainer,
-  createToggleSection,
-} from '../utils/ui';
+import { createToggleSection, addValidatedTextSetting } from '../utils/ui';
 
 const PATH_PATTERNS = {
   weekly: (folder: string, year: string, week: string) =>
@@ -105,32 +99,19 @@ export class PeriodicNotesManager extends BaseManager {
       },
     );
 
-    const folderSetting = new Setting(detailEl)
-      .setName('주기적 노트 저장 폴더')
-      .setDesc(
-        '주기적 노트(주간/월간/연간)가 생성 및 저장될 폴더 경로를 설정합니다.',
-      );
-
-    const folderErrorEl = addErrorContainer(folderSetting);
-
-    folderSetting.addText((text) => {
-      new FolderSuggest(this.plugin.app, text.inputEl);
-      text.setValue(this.plugin.settings.periodicNotesFolder || '');
-      text.onChange((value) => {
-        void (async () => {
-          const trimmed = value.trim();
-          if (!isValidPath(trimmed)) {
-            showError(
-              folderErrorEl,
-              '경로에 사용할 수 없는 문자가 포함되어 있습니다.',
-            );
-            return;
-          }
-          clearError(folderErrorEl);
-          this.plugin.settings.periodicNotesFolder = trimmed;
-          await this.plugin.saveSettings();
-        })();
-      });
+    addValidatedTextSetting(detailEl, {
+      name: '주기적 노트 저장 폴더',
+      desc: '주기적 노트(주간/월간/연간)가 생성 및 저장될 폴더 경로를 설정합니다.',
+      initialValue: this.plugin.settings.periodicNotesFolder || '',
+      onSetupText: (text) => new FolderSuggest(this.plugin.app, text.inputEl),
+      validate: (val) =>
+        !isValidPath(val.trim())
+          ? '경로에 사용할 수 없는 문자가 포함되어 있습니다.'
+          : null,
+      onChange: async (val) => {
+        this.plugin.settings.periodicNotesFolder = val.trim();
+        await this.plugin.saveSettings();
+      },
     });
   }
 }

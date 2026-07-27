@@ -19,9 +19,11 @@ import { stripFolderPrefix, isValidPath } from '../utils/file';
 import {
   showError,
   clearError,
-  addErrorContainer,
   createToggleSection,
+  addValidatedTextSetting,
+  addButtonSetting,
 } from '../utils/ui';
+import { calculateSHA256 } from '../utils/crypto';
 
 const EJS_ALLOWED_HASHES_KEY = 'ejs-allowed-hashes';
 
@@ -166,7 +168,7 @@ export class EjsManager extends BaseManager {
     try {
       // 1. Read template content and compute SHA-256 hash
       const templateContent = await this.plugin.app.vault.read(templateFile);
-      const calculatedHash = await this.calculateSHA256(templateContent);
+      const calculatedHash = await calculateSHA256(templateContent);
 
       const isAllowed = await this.checkAndPromptSecurity(
         templatePath,
@@ -238,14 +240,6 @@ export class EjsManager extends BaseManager {
     };
   }
 
-  private async calculateSHA256(text: string): Promise<string> {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(text);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
-  }
-
   private promptSecurityApproval(
     templatePath: string,
     hash: string,
@@ -303,7 +297,10 @@ export class EjsManager extends BaseManager {
     }
   }
 
-  private renderRules(rulesContainer: HTMLElement) {
+  /**
+   * Renders the EJS rules list UI within the settings container.
+   */
+  private renderRules(rulesContainer: HTMLElement): void {
     rulesContainer.empty();
 
     const listEl = rulesContainer.createDiv('ejs-rules-list');
@@ -393,7 +390,7 @@ export class EjsManager extends BaseManager {
 
     try {
       const content = await this.plugin.app.vault.read(file);
-      const calculatedHash = await this.calculateSHA256(content);
+      const calculatedHash = await calculateSHA256(content);
 
       const allowedHashes = this.getAllowedHashes();
       const isAllowed = allowedHashes[fullPath] === calculatedHash;
@@ -640,32 +637,21 @@ export class EjsManager extends BaseManager {
     );
 
     // 1. EJS 템플릿 폴더 설정을 맨 위로 배치
-    const folderSetting = new Setting(detailEl)
-      .setName('EJS 템플릿 폴더')
-      .setDesc('EJS 템플릿 파일이 저장된 폴더 경로입니다.');
-
-    const folderErrorEl = addErrorContainer(folderSetting);
-
-    folderSetting.addText((text) => {
-      new FolderSuggest(this.plugin.app, text.inputEl);
-      text.setValue(this.plugin.settings.ejsTemplatesFolder || '');
-      text.onChange((value) => {
-        void (async () => {
-          const trimmed = value.trim();
-          if (!isValidPath(trimmed)) {
-            showError(
-              folderErrorEl,
-              '경로에 사용할 수 없는 문자가 포함되어 있습니다.',
-            );
-            return;
-          }
-          clearError(folderErrorEl);
-          this.plugin.settings.ejsTemplatesFolder = trimmed;
-          await this.plugin.saveSettings();
-          // Re-render rules lists if folder changes
-          this.renderRules(rulesContainer);
-        })();
-      });
+    addValidatedTextSetting(detailEl, {
+      name: 'EJS 템플릿 폴더',
+      desc: 'EJS 템플릿 파일이 저장된 폴더 경로입니다.',
+      initialValue: this.plugin.settings.ejsTemplatesFolder || '',
+      onSetupText: (text) => new FolderSuggest(this.plugin.app, text.inputEl),
+      validate: (value) =>
+        !isValidPath(value.trim())
+          ? '경로에 사용할 수 없는 문자가 포함되어 있습니다.'
+          : null,
+      onChange: async (value) => {
+        this.plugin.settings.ejsTemplatesFolder = value.trim();
+        await this.plugin.saveSettings();
+        // Re-render rules lists if folder changes
+        this.renderRules(rulesContainer);
+      },
     });
 
     // 2. regex 규칙 목록 생성 및 배치
@@ -685,19 +671,17 @@ export class EjsManager extends BaseManager {
     this.renderRules(rulesContainer);
 
     // 3. 승인된 템플릿 해시 초기화 설정 배치
-    new Setting(detailEl)
-      .setName('승인된 템플릿 해시 초기화')
-      .setDesc(
-        '로컬 스토리지에 저장되어 실행이 승인된 모든 EJS 템플릿의 SHA-256 해시 목록을 초기화합니다.',
-      )
-      .addButton((button) => {
-        button.setButtonText('해시 초기화').onClick(() => {
-          this.clearAllowedHashes();
-          new Notice('모든 EJS 템플릿 해시가 성공적으로 초기화되었습니다.');
-          // Re-render status badges
-          this.renderRules(rulesContainer);
-        });
-        button.buttonEl.addClass('mod-warning');
-      });
+    addButtonSetting(detailEl, {
+      name: '승인된 템플릿 해시 초기화',
+      desc: '로컬 스토리지에 저장되어 실행이 승인된 모든 EJS 템플릿의 SHA-256 해시 목록을 초기화합니다.',
+      buttonText: '해시 초기화',
+      warning: true,
+      onClick: () => {
+        this.clearAllowedHashes();
+        new Notice('모든 EJS 템플릿 해시가 성공적으로 초기화되었습니다.');
+        // Re-render status badges
+        this.renderRules(rulesContainer);
+      },
+    });
   }
 }

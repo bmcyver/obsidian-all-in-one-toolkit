@@ -12,7 +12,6 @@ export interface ToolkitSettings {
   folderNoteEnabled: boolean;
   imageConverterEnabled: boolean;
   trashManagerEnabled: boolean;
-  scrollEnabled: boolean;
   ejsEnabled: boolean;
 
   // Image converter
@@ -20,8 +19,6 @@ export interface ToolkitSettings {
   imageStorePath: string;
   // Folder notes
   folderNoteExtension: string;
-  // Scroll speed
-  scrollSpeed: number;
   // EJS Templates
   ejsTemplatesFolder: string;
   ejsRules: EjsRule[];
@@ -34,13 +31,11 @@ export const DEFAULT_SETTINGS: ToolkitSettings = {
   folderNoteEnabled: true,
   imageConverterEnabled: true,
   trashManagerEnabled: true,
-  scrollEnabled: true,
   ejsEnabled: true,
 
   webpQuality: 85,
   imageStorePath: '[assets]/YYYY',
   folderNoteExtension: 'md',
-  scrollSpeed: 1,
   ejsTemplatesFolder: 'Templates',
   ejsRules: [],
   periodicNotesFolder: 'Periodic Notes',

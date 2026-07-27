@@ -1,4 +1,4 @@
-import { type Editor, Notice, TFile, Setting } from 'obsidian';
+import { type Editor, Notice, TFile } from 'obsidian';
 import {
   SUPPORTED_IMAGE_EXTENSIONS,
   CONVERTED_NAME_REGEX,
@@ -16,12 +16,7 @@ import {
 import { BaseManager } from './base';
 import { FolderSuggest } from '../ui/folder-suggest';
 import { DEFAULT_SETTINGS } from '../settings';
-import {
-  showError,
-  clearError,
-  addErrorContainer,
-  createToggleSection,
-} from '../utils/ui';
+import { createToggleSection, addValidatedTextSetting } from '../utils/ui';
 import { limitConcurrency } from '../utils/async';
 
 export class ImageConverterManager extends BaseManager {
@@ -364,64 +359,42 @@ export class ImageConverterManager extends BaseManager {
       },
     );
 
-    const qualitySetting = new Setting(detailEl)
-      .setName('WebP 이미지 품질')
-      .setDesc(
-        '변환될 WebP 이미지의 품질을 설정합니다 (0-100). 품질이 높을수록 파일 크기가 커집니다.',
-      );
-
-    const qualityErrorEl = addErrorContainer(qualitySetting);
-
-    qualitySetting.addText((text) => {
-      text.inputEl.type = 'number';
-      text.inputEl.min = '0';
-      text.inputEl.max = '100';
-      text.setValue(String(this.plugin.settings.webpQuality));
-      text.onChange((value) => {
-        void (async () => {
-          const num = parseInt(value, 10);
-          if (value.trim() === '' || isNaN(num)) {
-            showError(qualityErrorEl, '숫자를 입력해 주세요.');
-            return;
-          }
-          if (num < 0 || num > 100) {
-            showError(
-              qualityErrorEl,
-              '품질 값은 0에서 100 사이의 숫자여야 합니다.',
-            );
-            return;
-          }
-          clearError(qualityErrorEl);
-          this.plugin.settings.webpQuality = num;
-          await this.plugin.saveSettings();
-        })();
-      });
+    addValidatedTextSetting(detailEl, {
+      name: 'WebP 이미지 품질',
+      desc: '변환될 WebP 이미지의 품질을 설정합니다 (0-100). 품질이 높을수록 파일 크기가 커집니다.',
+      initialValue: String(this.plugin.settings.webpQuality),
+      inputType: 'number',
+      min: '0',
+      max: '100',
+      validate: (value) => {
+        const num = parseInt(value, 10);
+        if (value.trim() === '' || isNaN(num)) {
+          return '숫자를 입력해 주세요.';
+        }
+        if (num < 0 || num > 100) {
+          return '품질 값은 0에서 100 사이의 숫자여야 합니다.';
+        }
+        return null;
+      },
+      onChange: async (value) => {
+        this.plugin.settings.webpQuality = parseInt(value, 10);
+        await this.plugin.saveSettings();
+      },
     });
 
-    const pathSetting = new Setting(detailEl)
-      .setName('WebP 이미지 저장 경로')
-      .setDesc('변환된 WebP 이미지를 저장할 폴더 경로를 설정합니다.');
-
-    const pathErrorEl = addErrorContainer(pathSetting);
-
-    pathSetting.addText((text) => {
-      new FolderSuggest(this.plugin.app, text.inputEl);
-      text.setValue(this.plugin.settings.imageStorePath || '');
-      text.onChange((value) => {
-        void (async () => {
-          const trimmed = value.trim();
-          if (!isValidPath(trimmed)) {
-            showError(
-              pathErrorEl,
-              '경로에 사용할 수 없는 문자가 포함되어 있습니다.',
-            );
-            return;
-          }
-          clearError(pathErrorEl);
-          this.plugin.settings.imageStorePath = trimmed;
-          await this.plugin.saveSettings();
-        })();
-      });
+    addValidatedTextSetting(detailEl, {
+      name: 'WebP 이미지 저장 경로',
+      desc: '변환된 WebP 이미지를 저장할 폴더 경로를 설정합니다.',
+      initialValue: this.plugin.settings.imageStorePath || '',
+      onSetupText: (text) => new FolderSuggest(this.plugin.app, text.inputEl),
+      validate: (value) =>
+        !isValidPath(value.trim())
+          ? '경로에 사용할 수 없는 문자가 포함되어 있습니다.'
+          : null,
+      onChange: async (value) => {
+        this.plugin.settings.imageStorePath = value.trim();
+        await this.plugin.saveSettings();
+      },
     });
   }
 }
