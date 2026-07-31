@@ -35,8 +35,7 @@ export function createToggleSection(
   initialValue: boolean,
   onToggle: (value: boolean) => Promise<void>,
 ): HTMLElement {
-  const detailEl = containerEl.createDiv();
-  detailEl.style.display = initialValue ? '' : 'none';
+  let detailEl: HTMLElement;
 
   new Setting(containerEl)
     .setName(title)
@@ -45,10 +44,15 @@ export function createToggleSection(
       toggle.setValue(initialValue).onChange((value) => {
         void (async () => {
           await onToggle(value);
-          detailEl.style.display = value ? '' : 'none';
+          if (detailEl) {
+            detailEl.style.display = value ? '' : 'none';
+          }
         })();
       });
     });
+
+  detailEl = containerEl.createDiv();
+  detailEl.style.display = initialValue ? '' : 'none';
 
   return detailEl;
 }
