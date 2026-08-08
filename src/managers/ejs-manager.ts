@@ -22,8 +22,7 @@ import {
   showError,
   clearError,
   createToggleSection,
-  addValidatedTextSetting,
-  addButtonSetting,
+  addErrorContainer,
 } from '../utils/ui';
 import { calculateSHA256 } from '../utils/crypto';
 
@@ -44,7 +43,7 @@ interface EjsRenderContext {
 
 export class EjsManager extends BaseManager {
   private compiledRules: Array<{ regex: RegExp; templatePath: string }> = [];
-  private securityQueue: Promise<void> = Promise.resolve();
+  private securityLock: Promise<void> = Promise.resolve();
   private allowedHashesCache: Record<string, string> | null = null;
 
   protected isEnabled(): boolean {
@@ -75,7 +74,7 @@ export class EjsManager extends BaseManager {
 
   onload() {
     this.recompileRules();
-    this.plugin.registerEvent(
+    this.registerEventRef(
       this.plugin.app.vault.on('create', (file) => {
         if (!this.isEnabled()) return;
         void this.handleFileCreate(file);
@@ -91,23 +90,22 @@ export class EjsManager extends BaseManager {
   }
 
   private recompileRules() {
-    this.compiledRules = this.plugin.settings.ejsRules
-      .map((rule) => {
-        if (!rule.pattern || !rule.templatePath) return null;
-        try {
-          return {
-            regex: new RegExp(rule.pattern),
-            templatePath: rule.templatePath,
-          };
-        } catch (err) {
-          console.error(`패턴 정규식 오류 "${rule.pattern}":`, err);
-          return null;
-        }
-      })
-      .filter(
-        (rule): rule is { regex: RegExp; templatePath: string } =>
-          rule !== null,
-      );
+    const rules = this.plugin.settings.ejsRules;
+    const compiled: Array<{ regex: RegExp; templatePath: string }> = [];
+
+    for (const rule of rules) {
+      if (!rule.pattern || !rule.templatePath) continue;
+      try {
+        compiled.push({
+          regex: new RegExp(rule.pattern),
+          templatePath: rule.templatePath,
+        });
+      } catch (err) {
+        console.error(`패턴 정규식 오류 "${rule.pattern}":`, err);
+      }
+    }
+
+    this.compiledRules = compiled;
   }
 
   private getAllowedHashes(): Record<string, string> {
@@ -117,10 +115,15 @@ export class EjsManager extends BaseManager {
     const raw = this.plugin.app.loadLocalStorage(
       EJS_ALLOWED_HASHES_KEY,
     ) as unknown;
-    this.allowedHashesCache =
-      typeof raw === 'string'
-        ? (JSON.parse(raw) as Record<string, string>)
-        : {};
+    if (typeof raw === 'string' && raw.trim() !== '') {
+      try {
+        this.allowedHashesCache = JSON.parse(raw) as Record<string, string>;
+      } catch {
+        this.allowedHashesCache = {};
+      }
+    } else {
+      this.allowedHashesCache = {};
+    }
     return this.allowedHashesCache;
   }
 
@@ -134,7 +137,10 @@ export class EjsManager extends BaseManager {
 
   private clearAllowedHashes(): void {
     this.allowedHashesCache = {};
-    this.plugin.app.saveLocalStorage(EJS_ALLOWED_HASHES_KEY, '');
+    this.plugin.app.saveLocalStorage(
+      EJS_ALLOWED_HASHES_KEY,
+      JSON.stringify({}),
+    );
   }
 
   private async handleFileCreate(file: TAbstractFile) {
@@ -146,7 +152,7 @@ export class EjsManager extends BaseManager {
     for (const rule of this.compiledRules) {
       if (rule.regex.test(file.path)) {
         matchedRule = rule;
-        break; // First match wins
+        break;
       }
     }
 
@@ -168,7 +174,6 @@ export class EjsManager extends BaseManager {
     }
 
     try {
-      // 1. Read template content and compute SHA-256 hash
       const templateContent = await this.plugin.app.vault.read(templateFile);
       const calculatedHash = await calculateSHA256(templateContent);
 
@@ -183,15 +188,12 @@ export class EjsManager extends BaseManager {
         return;
       }
 
-      // 2. Define rendering context (locals)
       const locals = await this.buildRenderContext(file);
 
-      // 3. Render template asynchronously
       const rendered = await ejs.render(templateContent, locals, {
         async: true,
       });
 
-      // 4. Overwrite generated file content
       try {
         await this.plugin.app.vault.modify(file, rendered);
       } catch (modifyErr) {
@@ -200,14 +202,11 @@ export class EjsManager extends BaseManager {
       }
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : String(err);
-      new Notice(`EJS 렌더링 오류: ${errMsg}`);
+      new Notice(`EJS 렌더링 실패: ${errMsg}`);
       console.error('EJS 렌더링 중 오류 발생:', err);
     }
   }
 
-  /**
-   * Modular context builder for EJS template injection, allowing clean expansion.
-   */
   private async buildRenderContext(file: TFile): Promise<EjsRenderContext> {
     return {
       app: this.plugin.app,
@@ -251,42 +250,43 @@ export class EjsManager extends BaseManager {
     });
   }
 
-  private checkAndPromptSecurity(
+  private async checkAndPromptSecurity(
     templatePath: string,
     calculatedHash: string,
   ): Promise<boolean> {
-    return new Promise<boolean>((resolve) => {
-      this.securityQueue = this.securityQueue
-        .then(async () => {
-          const allowedHashes = this.getAllowedHashes();
-
-          const isAllowed = allowedHashes[templatePath] === calculatedHash;
-          if (isAllowed) {
-            resolve(true);
-            return;
-          }
-
-          const approved = await this.promptSecurityApproval(
-            templatePath,
-            calculatedHash,
-          );
-
-          if (!approved) {
-            resolve(false);
-            return;
-          }
-
-          const latestAllowedHashes = this.getAllowedHashes();
-          latestAllowedHashes[templatePath] = calculatedHash;
-          this.saveAllowedHashes(latestAllowedHashes);
-          new Notice(`EJS 템플릿이 승인되었습니다: ${templatePath}`);
-          resolve(true);
-        })
-        .catch((err) => {
-          console.error('보안 승인 처리 중 오류가 발생했습니다:', err);
-          resolve(false);
-        });
+    let releaseLock = () => {};
+    const currentLock = this.securityLock;
+    this.securityLock = new Promise<void>((resolve) => {
+      releaseLock = resolve;
     });
+
+    await currentLock;
+
+    try {
+      const allowedHashes = this.getAllowedHashes();
+      if (allowedHashes[templatePath] === calculatedHash) {
+        return true;
+      }
+
+      const approved = await this.promptSecurityApproval(
+        templatePath,
+        calculatedHash,
+      );
+
+      if (approved) {
+        const latestAllowedHashes = this.getAllowedHashes();
+        latestAllowedHashes[templatePath] = calculatedHash;
+        this.saveAllowedHashes(latestAllowedHashes);
+        new Notice(`EJS 템플릿이 승인되었습니다: ${templatePath}`);
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('보안 승인 처리 중 오류가 발생했습니다:', err);
+      return false;
+    } finally {
+      releaseLock();
+    }
   }
 
   private validateRegex(pattern: string): boolean {
@@ -299,9 +299,6 @@ export class EjsManager extends BaseManager {
     }
   }
 
-  /**
-   * Renders the EJS rules list UI within the settings container.
-   */
   private renderRules(rulesContainer: HTMLElement): void {
     rulesContainer.empty();
 
@@ -310,11 +307,12 @@ export class EjsManager extends BaseManager {
       this.plugin.settings.ejsTemplatesFolder ||
       DEFAULT_SETTINGS.ejsTemplatesFolder;
 
-    this.plugin.settings.ejsRules.forEach((rule, idx) => {
+    const rules = this.plugin.settings.ejsRules;
+    for (let idx = 0; idx < rules.length; idx++) {
+      const rule = rules[idx]!;
       this.renderRuleItem(listEl, rule, idx, rulesContainer, templatesFolder);
-    });
+    }
 
-    // Add Rule Button Container at the bottom (Setting Box style)
     new Setting(rulesContainer)
       .setName('규칙 추가')
       .setDesc('EJS 템플릿을 자동 적용할 정규식 규칙을 추가합니다.')
@@ -344,7 +342,6 @@ export class EjsManager extends BaseManager {
     statusAreaEl.empty();
     clearError(errorMsgEl);
 
-    // 1. Regex validation check
     if (!rule.pattern) {
       const badge = statusAreaEl.createDiv('ejs-rule-status-icon missing');
       badge.setAttribute('title', '정규식 패턴 미입력');
@@ -363,7 +360,6 @@ export class EjsManager extends BaseManager {
       return;
     }
 
-    // 2. Path validation check
     if (!rule.templatePath) {
       const badge = statusAreaEl.createDiv('ejs-rule-status-icon missing');
       badge.setAttribute('title', '경로 미입력');
@@ -409,7 +405,6 @@ export class EjsManager extends BaseManager {
           '보안 승인이 필요합니다. 우측 아이콘을 눌러 승인하세요.',
         );
 
-        // Quick Approve Button
         new ExtraButtonComponent(statusAreaEl)
           .setIcon('check-square')
           .setTooltip('승인')
@@ -443,34 +438,22 @@ export class EjsManager extends BaseManager {
     templatesFolder: string,
   ) {
     const ruleEl = listEl.createDiv('ejs-rule-item');
-
-    // Create upper main horizontal row
     const mainRowEl = ruleEl.createDiv('ejs-rule-main-row');
-
-    // 1. Status Area
     const statusAreaEl = mainRowEl.createDiv('ejs-rule-status-area');
-
-    // 5. Error Message Element (Placed below mainRowEl inside padding)
     const errorMsgEl = ruleEl.createDiv('ejs-rule-error-msg is-hidden');
 
     const triggerUpdate = () =>
       this.updateStatusArea(rule, statusAreaEl, errorMsgEl);
 
-    // 2. Pattern Input
     this.createPatternInput(mainRowEl, rule, triggerUpdate);
-
-    // 3. Template Path Wrapper
     this.createTemplatePathInput(
       mainRowEl,
       rule,
       templatesFolder,
       triggerUpdate,
     );
-
-    // 4. Control Buttons
     this.createControlButtons(mainRowEl, idx, rulesContainer);
 
-    // Trigger initial status check (asynchronous)
     void triggerUpdate();
   }
 
@@ -514,7 +497,6 @@ export class EjsManager extends BaseManager {
       })();
     });
 
-    // Initial validation
     checkRegexValidity();
   }
 
@@ -554,7 +536,6 @@ export class EjsManager extends BaseManager {
   ) {
     const controlsEl = mainRowEl.createDiv('ejs-rule-controls');
 
-    // Move Up
     if (idx > 0) {
       new ExtraButtonComponent(controlsEl)
         .setIcon('chevron-up')
@@ -574,7 +555,6 @@ export class EjsManager extends BaseManager {
         });
     }
 
-    // Move Down
     if (idx < this.plugin.settings.ejsRules.length - 1) {
       new ExtraButtonComponent(controlsEl)
         .setIcon('chevron-down')
@@ -594,7 +574,6 @@ export class EjsManager extends BaseManager {
         });
     }
 
-    // Delete
     new ExtraButtonComponent(controlsEl)
       .setIcon('x')
       .setTooltip('규칙 삭제')
@@ -619,25 +598,34 @@ export class EjsManager extends BaseManager {
       },
     );
 
-    // 1. EJS 템플릿 폴더 설정을 맨 위로 배치
-    addValidatedTextSetting(detailEl, {
-      name: 'EJS 템플릿 폴더',
-      desc: 'EJS 템플릿 파일이 저장된 폴더 경로입니다.',
-      initialValue: this.plugin.settings.ejsTemplatesFolder || '',
-      onSetupText: (text) => new FolderSuggest(this.plugin.app, text.inputEl),
-      validate: (value) =>
-        !isValidPath(value.trim())
-          ? '경로에 사용할 수 없는 문자가 포함되어 있습니다.'
-          : null,
-      onChange: async (value) => {
-        this.plugin.settings.ejsTemplatesFolder = value.trim();
-        await this.plugin.saveSettings();
-        // Re-render rules lists if folder changes
-        this.renderRules(rulesContainer);
-      },
+    const folderSetting = new Setting(detailEl)
+      .setName('EJS 템플릿 폴더')
+      .setDesc('EJS 템플릿 파일이 저장된 폴더 경로입니다.');
+
+    const errorEl = addErrorContainer(folderSetting);
+
+    folderSetting.addText((text) => {
+      text.setValue(this.plugin.settings.ejsTemplatesFolder || '');
+      new FolderSuggest(this.plugin.app, text.inputEl);
+
+      text.onChange((val) => {
+        void (async () => {
+          const trimmed = val.trim();
+          if (!isValidPath(trimmed)) {
+            showError(
+              errorEl,
+              '경로에 사용할 수 없는 문자가 포함되어 있습니다.',
+            );
+            return;
+          }
+          clearError(errorEl);
+          this.plugin.settings.ejsTemplatesFolder = trimmed;
+          await this.plugin.saveSettings();
+          this.renderRules(rulesContainer);
+        })();
+      });
     });
 
-    // 2. regex 규칙 목록 생성 및 배치
     const rulesContainer = detailEl.createDiv('ejs-rules-container');
     rulesContainer.addClass('ejs-rules-wrapper');
 
@@ -653,18 +641,19 @@ export class EjsManager extends BaseManager {
 
     this.renderRules(rulesContainer);
 
-    // 3. 승인된 템플릿 해시 초기화 설정 배치
-    addButtonSetting(detailEl, {
-      name: '템플릿 승인 목록 초기화',
-      desc: '승인된 EJS 템플릿 해시 목록을 초기화합니다.',
-      buttonText: '목록 초기화',
-      warning: true,
-      onClick: () => {
-        this.clearAllowedHashes();
-        new Notice('EJS 템플릿 승인 목록이 초기화되었습니다.');
-        // Re-render status badges
-        this.renderRules(rulesContainer);
-      },
-    });
+    new Setting(detailEl)
+      .setName('템플릿 승인 목록 초기화')
+      .setDesc('승인된 EJS 템플릿 해시 목록을 초기화합니다.')
+      .addButton((btn) => {
+        btn
+          .setButtonText('목록 초기화')
+          .setDestructive()
+          .setCta()
+          .onClick(() => {
+            this.clearAllowedHashes();
+            new Notice('EJS 템플릿 승인 목록이 초기화되었습니다.');
+            this.renderRules(rulesContainer);
+          });
+      });
   }
 }

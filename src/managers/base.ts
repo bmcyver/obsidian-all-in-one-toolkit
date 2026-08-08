@@ -1,14 +1,16 @@
+import type { EventRef } from 'obsidian';
 import AllInOneToolkitPlugin from '../main';
 
 export abstract class BaseManager {
   private loaded = false;
+  protected eventRefs: EventRef[] = [];
 
   constructor(public readonly plugin: AllInOneToolkitPlugin) {}
 
   abstract onload(): void;
 
   onunload(): void {
-    // Optional cleanup logic
+    // Optional cleanup logic in subclasses
   }
 
   renderSettings(containerEl: HTMLElement): void {
@@ -17,6 +19,21 @@ export abstract class BaseManager {
 
   protected isEnabled(): boolean {
     return true; // Default to always enabled
+  }
+
+  protected registerEventRef(ref: EventRef): void {
+    this.eventRefs.push(ref);
+  }
+
+  protected detachEventRefs(): void {
+    for (let i = 0; i < this.eventRefs.length; i++) {
+      const ref = this.eventRefs[i];
+      if (ref) {
+        this.plugin.app.workspace.offref(ref);
+        this.plugin.app.vault.offref(ref);
+      }
+    }
+    this.eventRefs = [];
   }
 
   enable(): void {
@@ -29,6 +46,7 @@ export abstract class BaseManager {
 
   disable(): void {
     if (!this.loaded) return;
+    this.detachEventRefs();
     this.onunload();
     this.loaded = false;
   }

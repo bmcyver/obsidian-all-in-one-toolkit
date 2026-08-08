@@ -13,6 +13,7 @@ export interface TrashFile {
 }
 
 const TRASH_DIR = '.trash';
+const TRASH_PREFIX_LEN = TRASH_DIR.length + 1; // '.trash/'.length
 
 export class TrashManager extends BaseManager {
   protected isEnabled(): boolean {
@@ -55,12 +56,16 @@ export class TrashManager extends BaseManager {
 
     // Limit concurrency of stat() calls to 50 to avoid I/O bottlenecks
     const stats = await limitConcurrency(list.files, 50, (f) =>
-      adapter.stat(f),
+      adapter.stat(f).catch(() => null),
     );
-    list.files.forEach((file, i) => {
+
+    for (let i = 0; i < list.files.length; i++) {
+      const file = list.files[i]!;
       const stat = stats[i];
-      const name = file.split('/').pop() || '';
-      const originalPath = file.substring((TRASH_DIR + '/').length);
+      const lastSlash = file.lastIndexOf('/');
+      const name = lastSlash >= 0 ? file.slice(lastSlash + 1) : file;
+      const originalPath = file.slice(TRASH_PREFIX_LEN);
+
       files.push({
         path: file,
         originalPath,
@@ -68,16 +73,19 @@ export class TrashManager extends BaseManager {
         mtime: stat?.mtime || 0,
         size: stat?.size || 0,
       });
-    });
+    }
 
-    // Recursively collect folders in parallel (limited to 10 concurrently)
-    const folderFilesResults = await limitConcurrency(
-      list.folders,
-      10,
-      (folder) => this.collectTrashFiles(folder),
-    );
-    for (const folderFiles of folderFilesResults) {
-      files.push(...folderFiles);
+    if (list.folders.length > 0) {
+      const folderFilesResults = await limitConcurrency(
+        list.folders,
+        10,
+        (folder) => this.collectTrashFiles(folder),
+      );
+      for (const folderFiles of folderFilesResults) {
+        for (const file of folderFiles) {
+          files.push(file);
+        }
+      }
     }
 
     return files;

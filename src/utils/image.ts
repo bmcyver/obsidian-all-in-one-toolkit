@@ -38,14 +38,14 @@ export function isAvifFile(file: File | string): boolean {
 export function isValidImageFile(file: File): boolean {
   if (isHeicFile(file)) {
     if (!__INCLUDE_HEIC__) {
-      new Notice('HEIC conversion is not supported in this build.');
+      new Notice('이 빌드에서는 HEIC 변환을 지원하지 않습니다.');
       return false;
     }
     return true;
   }
   if (!file.type.startsWith('image/')) return false;
   if (!SUPPORTED_IMAGE_TYPES.includes(file.type)) {
-    new Notice('Only JPEG, PNG, WebP, AVIF, and HEIC are supported.');
+    new Notice('JPEG, PNG, WebP, AVIF, HEIC 이미지 형식만 지원됩니다.');
     return false;
   }
   return true;
@@ -63,7 +63,7 @@ export async function toWebP(
 
   if (isHeicFile(file)) {
     if (!__INCLUDE_HEIC__) {
-      throw new Error('HEIC conversion is not supported in this build.');
+      throw new Error('이 빌드에서는 HEIC 변환을 지원하지 않습니다.');
     }
     const heicData = new Uint8Array(await file.arrayBuffer());
     if (!heicDecode) {

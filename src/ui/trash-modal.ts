@@ -62,6 +62,7 @@ export class TrashManagerModal extends Modal {
 
   private currentPage = 1;
   private itemsPerPage = 30;
+  private scrollTicking = false;
 
   constructor(app: App, plugin: AllInOneToolkitPlugin) {
     super(app);
@@ -89,10 +90,10 @@ export class TrashManagerModal extends Modal {
       .onChange((value) => {
         window.clearTimeout(debounceTimeout);
         debounceTimeout = window.setTimeout(() => {
-          this.searchQuery = value.toLowerCase();
+          this.searchQuery = value.toLowerCase().trim();
           this.currentPage = 1;
           this.filterAndRender(true);
-        }, 250);
+        }, 200);
       });
 
     new ButtonComponent(actionBar)
@@ -104,11 +105,17 @@ export class TrashManagerModal extends Modal {
     // List container
     this.listEl = contentEl.createDiv({ cls: 'tk-trash-list' });
 
-    // Scroll event listener for infinite scrolling
+    // Scroll event listener using requestAnimationFrame for smooth scrolling
     this.listEl.addEventListener('scroll', () => {
-      const { scrollTop, scrollHeight, clientHeight } = this.listEl;
-      if (scrollHeight - scrollTop - clientHeight < 100) {
-        this.loadMore();
+      if (!this.scrollTicking) {
+        window.requestAnimationFrame(() => {
+          const { scrollTop, scrollHeight, clientHeight } = this.listEl;
+          if (scrollHeight - scrollTop - clientHeight < 100) {
+            this.loadMore();
+          }
+          this.scrollTicking = false;
+        });
+        this.scrollTicking = true;
       }
     });
 
@@ -139,7 +146,10 @@ export class TrashManagerModal extends Modal {
 
   updateStats() {
     const totalCount = this.items.length;
-    const totalBytes = this.items.reduce((sum, item) => sum + item.size, 0);
+    let totalBytes = 0;
+    for (let i = 0; i < this.items.length; i++) {
+      totalBytes += this.items[i]!.size;
+    }
     this.statsTextEl.setText(`총 ${totalCount}개 • ${formatBytes(totalBytes)}`);
   }
 
@@ -148,9 +158,13 @@ export class TrashManagerModal extends Modal {
       this.listEl.empty();
     }
 
-    this.filteredItems = this.items.filter((item) =>
-      item.originalPath.toLowerCase().includes(this.searchQuery),
-    );
+    if (!this.searchQuery) {
+      this.filteredItems = this.items;
+    } else {
+      this.filteredItems = this.items.filter((item) =>
+        item.originalPath.toLowerCase().includes(this.searchQuery),
+      );
+    }
 
     if (this.filteredItems.length === 0) {
       if (reset) {
@@ -169,12 +183,14 @@ export class TrashManagerModal extends Modal {
       this.filteredItems.length,
     );
 
+    const fragment = createFragment();
     for (let i = start; i < end; i++) {
       const item = this.filteredItems[i];
       if (item) {
-        this.renderTrashItem(this.listEl, item);
+        this.renderTrashItem(fragment, item);
       }
     }
+    this.listEl.appendChild(fragment);
   }
 
   loadMore() {
@@ -185,8 +201,11 @@ export class TrashManagerModal extends Modal {
     this.filterAndRender(false);
   }
 
-  private renderTrashItem(containerEl: HTMLElement, item: TrashFile) {
-    const itemEl = containerEl.createDiv({
+  private renderTrashItem(
+    containerEl: DocumentFragment | HTMLElement,
+    item: TrashFile,
+  ) {
+    const itemEl = createDiv({
       cls: 'tk-trash-item',
     });
 
@@ -199,7 +218,7 @@ export class TrashManagerModal extends Modal {
       cls: 'tk-trash-item-name',
     });
 
-    // Meta container (Path • Size) for clean mobile support
+    // Meta container (Path • Size)
     const metaEl = infoEl.createDiv({
       cls: 'tk-trash-item-meta',
     });
@@ -230,6 +249,8 @@ export class TrashManagerModal extends Modal {
       .onClick(() => {
         void this.deleteItem(item);
       });
+
+    containerEl.appendChild(itemEl);
   }
 
   async restoreItem(item: TrashFile) {
@@ -254,7 +275,7 @@ export class TrashManagerModal extends Modal {
       this.currentPage = 1;
       this.filterAndRender(true);
     } catch (err) {
-      new Notice(`삭제 실패: ${(err as Error).message}`);
+      new Notice(`영구 삭제 실패: ${(err as Error).message}`);
     }
   }
 
@@ -267,7 +288,7 @@ export class TrashManagerModal extends Modal {
   async emptyTrash() {
     try {
       await this.trashManager.emptyTrash();
-      new Notice('휴지통을 비웠습니다.');
+      new Notice('휴지통 비우기 완료');
       await this.loadItems();
     } catch (err) {
       new Notice(`휴지통 비우기 실패: ${(err as Error).message}`);

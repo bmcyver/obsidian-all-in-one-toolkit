@@ -34,7 +34,12 @@ export class MarkdownlintResultModal extends Modal {
 
     this.setTitle('Markdown Lint 검사 결과');
 
-    const fixableCount = this.issues.filter((i) => Boolean(i.fixInfo)).length;
+    let fixableCount = 0;
+    for (let i = 0; i < this.issues.length; i++) {
+      if (this.issues[i]?.fixInfo) {
+        fixableCount++;
+      }
+    }
 
     // Stats Bar
     const statsBar = contentEl.createDiv({
@@ -60,7 +65,7 @@ export class MarkdownlintResultModal extends Modal {
         debounceTimeout = window.setTimeout(() => {
           this.searchQuery = value.toLowerCase().trim();
           this.renderList(listContainer);
-        }, 200);
+        }, 150);
       });
 
     if (fixableCount > 0 && this.onFixAll) {
@@ -83,21 +88,31 @@ export class MarkdownlintResultModal extends Modal {
   private renderList(containerEl: HTMLElement) {
     containerEl.empty();
 
-    const filtered = this.issues.filter((issue) => {
-      if (!this.searchQuery) return true;
+    const query = this.searchQuery;
+    const filtered: LintError[] = [];
+
+    for (let i = 0; i < this.issues.length; i++) {
+      const issue = this.issues[i]!;
+      if (!query) {
+        filtered.push(issue);
+        continue;
+      }
       const ruleId = (issue.ruleNames[0] || '').toLowerCase();
       const ruleName = (issue.ruleNames[1] || '').toLowerCase();
       const desc = (issue.ruleDescription || '').toLowerCase();
       const detail = (issue.errorDetail || '').toLowerCase();
       const lineStr = String(issue.lineNumber);
-      return (
-        ruleId.includes(this.searchQuery) ||
-        ruleName.includes(this.searchQuery) ||
-        desc.includes(this.searchQuery) ||
-        detail.includes(this.searchQuery) ||
-        lineStr.includes(this.searchQuery)
-      );
-    });
+
+      if (
+        ruleId.includes(query) ||
+        ruleName.includes(query) ||
+        desc.includes(query) ||
+        detail.includes(query) ||
+        lineStr.includes(query)
+      ) {
+        filtered.push(issue);
+      }
+    }
 
     if (filtered.length === 0) {
       const emptyDiv = containerEl.createDiv({
@@ -111,7 +126,8 @@ export class MarkdownlintResultModal extends Modal {
 
     const fragment = createFragment();
 
-    for (const issue of filtered) {
+    for (let i = 0; i < filtered.length; i++) {
+      const issue = filtered[i]!;
       const lineNum = issue.lineNumber;
       const ruleId = issue.ruleNames[0] || 'MD000';
       const ruleName = issue.ruleNames[1] ? ` (${issue.ruleNames[1]})` : '';
