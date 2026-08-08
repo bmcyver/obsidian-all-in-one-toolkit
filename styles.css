@@ -1,8 +1,12 @@
+/* ==========================================================================
+   1. Folder Note Manager Styles
+   ========================================================================== */
+
 .nav-files-container .fn-hidden-file {
   display: none !important;
 }
 
-/* Default styling: color applied to parent so it can be easily overridden by css.css */
+/* Default styling: color applied to parent so it can be easily overridden by custom CSS */
 .nav-folder-title.has-folder-note {
   color: var(--interactive-accent);
 }
@@ -13,62 +17,55 @@
   text-underline-offset: 3px;
 }
 
-/*=========================================*/
+/* ==========================================================================
+   2. Trash Manager & Modal Styles
+   ========================================================================== */
 
-/* Trash Manager Modal Styles */
 .tk-trash-modal {
-  max-width: 650px;
-  width: 90vw;
+  --modal-max-width: 540px;
 }
 
 .tk-trash-action-bar {
   display: flex;
-  gap: 12px;
-  margin-bottom: 16px;
+  gap: var(--size-4-3);
+  margin-bottom: var(--size-4-4);
   align-items: center;
+  flex-wrap: wrap;
 }
 
-.tk-trash-search {
+.tk-trash-action-bar .search-input-container {
   flex-grow: 1;
-  height: 38px;
-  padding: 8px 12px;
-  border-radius: 6px;
-  border: 1px solid var(--background-modifier-border);
-  background-color: var(--background-primary);
-  color: var(--text-normal);
-}
-
-.tk-trash-search:focus {
-  border-color: var(--interactive-accent);
-  outline: none;
-}
-
-.tk-trash-empty-btn {
-  height: 38px;
-  white-space: nowrap;
 }
 
 .tk-trash-list {
   max-height: 400px;
   overflow-y: auto;
   border: 1px solid var(--background-modifier-border);
-  border-radius: 6px;
-  background-color: var(--background-secondary-alt);
+  border-radius: var(--radius-m);
+  background-color: var(--background-primary);
 }
 
 .tk-trash-loading,
-.tk-trash-error,
 .tk-trash-empty-msg {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 40px;
+  padding: var(--size-4-8);
   color: var(--text-muted);
 }
 
+.tk-trash-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--size-4-8);
+  color: var(--text-error);
+}
+
 .tk-trash-empty-text {
-  font-size: 1.1em;
+  font-size: var(--font-ui-medium);
   font-weight: 500;
 }
 
@@ -76,7 +73,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 16px;
+  padding: var(--size-4-2) var(--size-4-3);
   border-bottom: 1px solid var(--background-modifier-border);
   transition: background-color 0.15s ease;
 }
@@ -92,79 +89,54 @@
 .tk-trash-item-info {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--size-4-1);
   overflow: hidden;
-  margin-right: 16px;
+  margin-right: var(--size-4-4);
+  flex: 1;
+  min-width: 0;
 }
 
 .tk-trash-item-name {
   font-weight: 600;
+  font-size: var(--font-ui-medium);
   color: var(--text-normal);
+  line-height: 1.4;
+  margin: 0;
   white-space: nowrap;
   text-overflow: ellipsis;
   overflow: hidden;
 }
 
 .tk-trash-item-path {
-  font-size: 0.85em;
+  font-size: var(--font-ui-smaller);
   color: var(--text-muted);
   white-space: nowrap;
   text-overflow: ellipsis;
   overflow: hidden;
   flex-shrink: 1;
+  min-width: 0;
 }
 
 .tk-trash-item-controls {
   display: flex;
-  gap: 8px;
+  gap: var(--size-4-1);
   flex-shrink: 0;
 }
 
-.tk-trash-btn {
-  padding: 6px;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  background: none;
-  border: none;
-}
-
-.tk-trash-btn svg {
-  width: 18px;
-  height: 18px;
-}
-
-.tk-confirm-buttons {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  margin-top: 20px;
-}
-
-.tk-confirm-buttons button {
-  padding: 6px 16px;
-  border-radius: 6px;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-/* Trash size and stats bar */
 .tk-trash-stats-bar {
-  margin-top: -8px;
-  margin-bottom: 16px;
-  font-size: 0.9em;
+  margin-bottom: var(--size-4-3);
+  font-size: var(--font-ui-small);
   color: var(--text-muted);
 }
 
 .tk-trash-item-meta {
   display: flex;
   align-items: center;
-  gap: 4px;
-  font-size: 0.85em;
+  gap: var(--size-4-1);
+  font-size: var(--font-ui-smaller);
   color: var(--text-muted);
   width: 100%;
+  min-width: 0;
 }
 
 .tk-trash-item-divider {
@@ -177,39 +149,15 @@
   color: var(--text-muted);
 }
 
-/* Mobile Responsiveness */
-@media (max-width: 480px) {
-  .tk-trash-action-bar {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
-  }
+/* ==========================================================================
+   3. EJS Manager & Modals Styles
+   ========================================================================== */
 
-  .tk-trash-search {
-    width: 100%;
-  }
-
-  .tk-trash-empty-btn {
-    width: 100%;
-    height: 38px;
-  }
-
-  .tk-trash-item {
-    padding: 10px 12px;
-    gap: 8px;
-  }
-
-  .tk-trash-item-controls {
-    gap: 4px;
-  }
-}
-
-/* EJS Manager Styles */
 .ejs-rules-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-bottom: 16px;
+  gap: var(--size-4-2);
+  margin-bottom: var(--size-4-4);
 }
 
 .ejs-rule-item {
@@ -217,9 +165,8 @@
   flex-direction: column;
   background-color: var(--background-secondary);
   border: 1px solid var(--background-modifier-border);
-  border-radius: 8px;
-  padding: 8px 16px;
-  gap: 0px;
+  border-radius: var(--radius-m);
+  padding: var(--size-4-2) var(--size-4-3);
 }
 
 .ejs-rule-main-row {
@@ -227,56 +174,34 @@
   flex-direction: row;
   align-items: center;
   width: 100%;
-  gap: 12px;
+  gap: var(--size-4-2);
+  flex-wrap: wrap;
 }
 
 .ejs-rule-error-msg {
   color: var(--text-error);
-  font-size: 0.85em;
+  font-size: var(--font-ui-smaller);
   width: 100% !important;
   flex-basis: 100%;
-  margin-top: 8px;
-  margin-bottom: 2px;
-  padding-left: 36px;
+  margin-top: var(--size-4-2);
+  margin-bottom: var(--size-2-1);
+  padding-left: var(--size-4-6);
 }
 
 .ejs-rule-pattern-input {
-  flex: 1 1 35%;
-  height: 36px;
+  flex: 1 1 140px;
+  min-width: 0;
 }
 
-.ejs-template-path-wrapper {
-  position: relative;
-  flex: 1 1 45%;
-  display: flex;
-  align-items: center;
-}
-
-.ejs-template-path-wrapper input {
-  width: 100%;
-  height: 36px;
-  padding-left: 36px;
-  padding-right: 12px;
-}
-
-.ejs-template-path-icon {
-  position: absolute;
-  left: 10px;
-  color: var(--text-muted);
-  pointer-events: none;
-  display: flex;
-  align-items: center;
-}
-
-.ejs-template-path-icon svg {
-  width: 16px;
-  height: 16px;
+.ejs-rule-path-input {
+  flex: 1 1 180px;
+  min-width: 0;
 }
 
 .ejs-rule-status-area {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--size-4-1);
   flex-shrink: 0;
 }
 
@@ -287,20 +212,22 @@
   width: 24px;
   height: 24px;
   flex-shrink: 0;
-  background: none !important;
-  border: none !important;
 }
 
 .ejs-rule-status-icon.approved {
-  color: #4caf50;
+  color: var(--text-success);
 }
 
 .ejs-rule-status-icon.pending {
-  color: #ff9800;
+  color: var(--text-warning);
+}
+
+.theme-light .ejs-rule-status-icon.pending {
+  color: var(--text-warning-hover, #b45309);
 }
 
 .ejs-rule-status-icon.missing {
-  color: #f44336;
+  color: var(--text-error);
 }
 
 .ejs-rule-status-icon svg {
@@ -311,82 +238,276 @@
 .ejs-rule-controls {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--size-2-1);
   flex-shrink: 0;
-  margin-left: auto !important;
-}
-
-.ejs-rule-btn {
-  background: none !important;
-  border: none !important;
-  box-shadow: none !important;
-  padding: 6px !important;
-  border-radius: 4px !important;
-  color: var(--text-muted) !important;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition:
-    background-color 0.15s ease,
-    color 0.15s ease;
-}
-
-.ejs-rule-btn:hover {
-  background-color: var(--background-modifier-hover) !important;
-  color: var(--text-normal) !important;
-}
-
-.ejs-rule-btn.delete-btn:hover {
-  color: var(--text-error) !important;
-}
-
-.ejs-rule-btn svg {
-  width: 16px;
-  height: 16px;
-}
-
-.btn-approve-quick {
-  font-size: 0.75em;
-  padding: 3px 6px;
-  height: auto;
+  margin-left: auto;
 }
 
 .ejs-security-info {
   background-color: var(--background-secondary);
-  padding: 12px;
-  border-radius: 4px;
-  margin-bottom: 20px;
+  padding: var(--size-4-3);
+  border-radius: var(--radius-s);
+  margin-bottom: var(--size-4-4);
 }
 
 .ejs-security-info-hash {
-  margin-top: 5px;
+  margin-top: var(--size-2-1);
 }
 
-.ejs-prompt-setting {
-  border: none !important;
-  padding: 0 !important;
-  margin-bottom: 20px !important;
+.ejs-security-info-hash code {
+  word-break: break-all;
 }
 
 .ejs-rules-header {
   border-top: 1px solid var(--background-modifier-border);
-  padding-top: 1.5em;
+  padding-top: var(--size-4-4);
 }
+
+/* ==========================================================================
+   4. Markdownlint Manager & Result Modal Styles
+   ========================================================================== */
+
+.tk-markdownlint-rule-link {
+  color: var(--text-normal);
+  text-decoration: none;
+}
+
+.tk-markdownlint-rule-link:hover {
+  color: var(--interactive-accent);
+  text-decoration: underline;
+}
+
+.tk-markdownlint-rule-id {
+  font-weight: 700;
+  color: var(--text-normal);
+}
+
+.tk-markdownlint-rule-alias {
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.tk-markdownlint-suboptions-container {
+  margin-left: var(--size-4-4);
+  padding-left: var(--size-4-3);
+  border-left: 2px solid var(--background-modifier-border);
+  margin-top: var(--size-4-1);
+  margin-bottom: var(--size-4-3);
+}
+
+.tk-markdownlint-suboption-item {
+  border-top: none !important;
+  padding-top: var(--size-4-1) !important;
+  padding-bottom: var(--size-4-1) !important;
+}
+
+.tk-markdownlint-suboption-item .setting-item-name {
+  font-weight: 500;
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+}
+
+.tk-markdownlint-suboption-item .setting-item-description {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+
+.tk-markdownlint-group-details {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  margin-bottom: var(--size-4-2);
+  padding: var(--size-4-2) var(--size-4-3);
+  background-color: var(--background-primary-alt);
+}
+
+.tk-markdownlint-group-summary {
+  font-weight: 600;
+  font-size: var(--font-ui-small);
+  cursor: pointer;
+  padding: var(--size-4-1) 0;
+  user-select: none;
+  color: var(--text-normal);
+}
+
+.tk-markdownlint-group-content {
+  margin-top: var(--size-4-1);
+  border-top: 1px solid var(--background-modifier-border);
+  padding-top: var(--size-4-1);
+}
+
+.tk-markdownlint-rule-item-container {
+  margin-bottom: var(--size-4-1);
+}
+
+.tk-markdownlint-result-modal {
+  --modal-width: 680px;
+}
+
+.tk-markdownlint-stats-bar {
+  display: flex;
+  align-items: center;
+  margin-bottom: var(--size-4-3);
+}
+
+.tk-markdownlint-stats-text {
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+}
+
+.tk-markdownlint-modal-action-bar {
+  display: flex;
+  gap: var(--size-4-2);
+  margin-bottom: var(--size-4-3);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.tk-markdownlint-modal-action-bar .search-input-container {
+  flex: 1;
+}
+
+.tk-markdownlint-result-list {
+  max-height: 55vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-2);
+  padding-right: var(--size-2-1);
+}
+
+.tk-markdownlint-empty-msg {
+  padding: var(--size-4-8);
+  text-align: center;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  background-color: var(--background-secondary-alt);
+  border-radius: var(--radius-m);
+}
+
+.tk-markdownlint-result-item {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  padding: var(--size-4-2) var(--size-4-3);
+  background-color: var(--background-primary-alt);
+  transition: background-color 0.15s ease;
+}
+
+.tk-markdownlint-result-item:hover {
+  background-color: var(--background-modifier-hover);
+}
+
+.tk-markdownlint-result-item.is-fixable {
+  border-left: 3px solid var(--text-success);
+}
+
+.tk-markdownlint-result-item-header {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-2);
+  margin-bottom: var(--size-4-1);
+  flex-wrap: wrap;
+}
+
+.tk-markdownlint-line-btn {
+  font-size: var(--font-ui-smaller);
+  font-weight: 600;
+  padding: var(--size-2-1) var(--size-4-2);
+  height: auto;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--size-4-1);
+  border-radius: var(--radius-s);
+  background-color: var(--interactive-normal);
+  color: var(--text-normal);
+  border: 1px solid var(--background-modifier-border);
+}
+
+.tk-markdownlint-line-btn:hover {
+  background-color: var(--interactive-hover);
+  color: var(--interactive-accent);
+}
+
+.tk-markdownlint-rule-badge {
+  font-weight: 600;
+  font-size: var(--font-ui-small);
+  color: var(--interactive-accent);
+  text-decoration: none;
+}
+
+.tk-markdownlint-rule-name {
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+}
+
+.tk-markdownlint-rule-badge:hover {
+  text-decoration: underline;
+}
+
+.tk-markdownlint-fixable-tag {
+  font-size: var(--font-ui-smaller);
+  padding: var(--size-2-1) var(--size-4-2);
+  border-radius: var(--radius-s);
+  background-color: var(--background-secondary-alt);
+  color: var(--text-success);
+  border: 1px solid var(--text-success);
+  font-weight: 600;
+  margin-left: auto;
+}
+
+.tk-markdownlint-result-item-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-1);
+}
+
+.tk-markdownlint-result-desc {
+  font-size: var(--font-ui-small);
+  color: var(--text-normal);
+  line-height: 1.4;
+  overflow-wrap: break-word;
+}
+
+.tk-markdownlint-result-context {
+  display: block;
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-smaller);
+  background-color: var(--background-secondary);
+  padding: var(--size-2-1) var(--size-4-2);
+  border-radius: var(--radius-s);
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--text-muted);
+  margin-top: var(--size-2-1);
+}
+
+/* ==========================================================================
+   5. Shared UI & Utility Styles
+   ========================================================================== */
 
 .is-hidden {
   display: none !important;
 }
 
-.setting-item-error {
-  color: var(--text-error);
-  font-size: 0.85em;
-  margin-top: 8px;
-  width: 100% !important;
-  flex-basis: 100%;
-  text-align: right;
-}
-
 .setting-item.has-error-container {
   flex-wrap: wrap !important;
+}
+
+.setting-item.has-error-container > .setting-item-info {
+  flex: 1 1 0%;
+  min-width: 0;
+}
+
+.setting-item.has-error-container > .setting-item-control {
+  flex-shrink: 0;
+}
+
+.setting-item-error {
+  color: var(--text-error);
+  font-size: var(--font-ui-smaller);
+  margin-top: var(--size-4-1);
+  width: 100% !important;
+  flex-basis: 100%;
+  order: 99;
+  text-align: left;
 }

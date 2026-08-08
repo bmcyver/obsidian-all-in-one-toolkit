@@ -71,6 +71,11 @@ export function migrateSettings(data: unknown): ToolkitSettings {
       DEFAULT_SETTINGS.trashManagerEnabled,
     ),
     ejsEnabled: getBoolean(d, 'ejsEnabled', DEFAULT_SETTINGS.ejsEnabled),
+    markdownlintEnabled: getBoolean(
+      d,
+      'markdownlintEnabled',
+      DEFAULT_SETTINGS.markdownlintEnabled,
+    ),
 
     webpQuality,
     imageStorePath: getString(
@@ -101,5 +106,28 @@ export function migrateSettings(data: unknown): ToolkitSettings {
       'periodicNotesFolder',
       DEFAULT_SETTINGS.periodicNotesFolder,
     ),
+    autofixOnSave: getBoolean(
+      d,
+      'autofixOnSave',
+      DEFAULT_SETTINGS.autofixOnSave,
+    ),
+    markdownlintIgnoredFolders: Array.isArray(d.markdownlintIgnoredFolders)
+      ? d.markdownlintIgnoredFolders.map(String)
+      : DEFAULT_SETTINGS.markdownlintIgnoredFolders,
+    markdownlintRules: (() => {
+      const rawRules =
+        d.markdownlintRules && typeof d.markdownlintRules === 'object'
+          ? (d.markdownlintRules as Record<string, unknown>)
+          : {};
+      const rules = JSON.parse(
+        JSON.stringify(DEFAULT_SETTINGS.markdownlintRules),
+      ) as Record<string, boolean | Record<string, unknown>>;
+      for (const [key, val] of Object.entries(rawRules)) {
+        if (typeof val === 'boolean' || (val && typeof val === 'object')) {
+          rules[key] = val as boolean | Record<string, unknown>;
+        }
+      }
+      return rules;
+    })(),
   };
 }

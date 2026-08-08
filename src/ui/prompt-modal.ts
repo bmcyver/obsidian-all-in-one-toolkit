@@ -1,4 +1,4 @@
-import { App, Modal, Setting } from 'obsidian';
+import { App, Modal, Setting, ButtonComponent } from 'obsidian';
 
 export class EjsPromptModal extends Modal {
   private message: string;
@@ -24,9 +24,9 @@ export class EjsPromptModal extends Modal {
     const { contentEl } = this;
     contentEl.empty();
 
-    contentEl.createEl('h3', { text: this.message });
+    this.setTitle(this.message);
 
-    const inputSetting = new Setting(contentEl).addText((text) => {
+    new Setting(contentEl).addText((text) => {
       text.setValue(this.defaultValue);
 
       // Auto focus the input field
@@ -48,22 +48,19 @@ export class EjsPromptModal extends Modal {
       });
     });
 
-    // Remove setting border and spacing for clean input design
-    inputSetting.settingEl.addClass('ejs-prompt-setting');
+    const buttonContainer = contentEl.createDiv({
+      cls: 'modal-button-container',
+    });
 
-    new Setting(contentEl)
-      .addButton((btn) => {
-        btn
-          .setButtonText('확인')
-          .setCta()
-          .onClick(() => {
-            this.submit();
-          });
-      })
-      .addButton((btn) => {
-        btn.setButtonText('취소').onClick(() => {
-          this.close();
-        });
+    new ButtonComponent(buttonContainer).setButtonText('취소').onClick(() => {
+      this.close();
+    });
+
+    new ButtonComponent(buttonContainer)
+      .setButtonText('확인')
+      .setCta()
+      .onClick(() => {
+        this.submit();
       });
   }
 

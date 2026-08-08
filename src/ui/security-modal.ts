@@ -1,4 +1,4 @@
-import { App, Modal, Setting } from 'obsidian';
+import { App, Modal, ButtonComponent } from 'obsidian';
 
 export class EjsSecurityModal extends Modal {
   private templatePath: string;
@@ -22,13 +22,10 @@ export class EjsSecurityModal extends Modal {
     const { contentEl } = this;
     contentEl.empty();
 
-    contentEl.createEl('h2', {
-      text: 'EJS 템플릿 실행 승인 필요 (Security Warning)',
-      cls: 'mod-warning',
-    });
+    this.setTitle('EJS 템플릿 실행 승인');
 
     contentEl.createEl('p', {
-      text: '지정된 EJS 템플릿이 처음 실행되거나 파일 내용이 변경되었습니다. EJS 템플릿은 샌드박스 없이 임의의 JavaScript 코드를 실행할 수 있으므로, 신뢰할 수 있는 템플릿만 실행해 주세요.',
+      text: '템플릿이 처음 실행되거나 내용이 변경되었습니다. EJS 템플릿은 JavaScript 코드를 실행할 수 있으므로 신뢰할 수 있는 경우에만 허용하세요.',
     });
 
     const infoTable = contentEl.createDiv('ejs-security-info');
@@ -41,23 +38,23 @@ export class EjsSecurityModal extends Modal {
     hashDiv.createEl('strong', { text: 'SHA-256 해시: ' });
     hashDiv.createEl('code', { text: this.hash });
 
-    new Setting(contentEl)
-      .addButton((btn) => {
-        btn
-          .setButtonText('이 템플릿 허용 및 실행 (Allow & Run)')
-          .setCta()
-          .onClick(() => {
-            this.decisionMade = true;
-            this.onDecision(true);
-            this.close();
-          });
-      })
-      .addButton((btn) => {
-        btn.setButtonText('차단 (Block)').onClick(() => {
-          this.decisionMade = true;
-          this.onDecision(false);
-          this.close();
-        });
+    const buttonContainer = contentEl.createDiv({
+      cls: 'modal-button-container',
+    });
+
+    new ButtonComponent(buttonContainer).setButtonText('차단').onClick(() => {
+      this.decisionMade = true;
+      this.onDecision(false);
+      this.close();
+    });
+
+    new ButtonComponent(buttonContainer)
+      .setButtonText('허용 및 실행')
+      .setCta()
+      .onClick(() => {
+        this.decisionMade = true;
+        this.onDecision(true);
+        this.close();
       });
   }
 

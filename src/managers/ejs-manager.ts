@@ -7,6 +7,8 @@ import {
   setIcon,
   App,
   normalizePath,
+  TextComponent,
+  ExtraButtonComponent,
 } from 'obsidian';
 import ejs from '../ejs/ejs';
 import { EjsSecurityModal } from '../ui/security-modal';
@@ -277,7 +279,7 @@ export class EjsManager extends BaseManager {
           const latestAllowedHashes = this.getAllowedHashes();
           latestAllowedHashes[templatePath] = calculatedHash;
           this.saveAllowedHashes(latestAllowedHashes);
-          new Notice(`EJS 템플릿 해시가 승인되었습니다: ${templatePath}`);
+          new Notice(`EJS 템플릿이 승인되었습니다: ${templatePath}`);
           resolve(true);
         })
         .catch((err) => {
@@ -314,10 +316,8 @@ export class EjsManager extends BaseManager {
 
     // Add Rule Button Container at the bottom (Setting Box style)
     new Setting(rulesContainer)
-      .setName('새 파일 정규식 추가')
-      .setDesc(
-        'EJS 템플릿을 자동으로 매핑할 새로운 파일 정규식 규칙을 추가합니다.',
-      )
+      .setName('규칙 추가')
+      .setDesc('EJS 템플릿을 자동 적용할 정규식 규칙을 추가합니다.')
       .addButton((btn) => {
         btn
           .setButtonText('규칙 추가')
@@ -397,44 +397,40 @@ export class EjsManager extends BaseManager {
 
       if (isAllowed) {
         const badge = statusAreaEl.createDiv('ejs-rule-status-icon approved');
-        badge.setAttribute('title', '실행 승인됨');
+        badge.setAttribute('title', '승인됨');
         setIcon(badge, 'check');
       } else {
         const badge = statusAreaEl.createDiv('ejs-rule-status-icon pending');
-        badge.setAttribute('title', '승인 대기중');
+        badge.setAttribute('title', '승인 대기');
         setIcon(badge, 'alert-triangle');
 
         showError(
           errorMsgEl,
-          '보안 승인이 필요합니다. 우측의 체크 아이콘을 눌러 승인해 주세요.',
+          '보안 승인이 필요합니다. 우측 아이콘을 눌러 승인하세요.',
         );
 
         // Quick Approve Button
-        const approveBtn = statusAreaEl.createEl('button', {
-          cls: 'ejs-rule-btn btn-approve-quick',
-          title: '즉시 승인',
-        });
-        setIcon(approveBtn, 'check-square');
-        approveBtn.addEventListener('click', () => {
-          void (async () => {
-            const latestAllowedHashes = this.getAllowedHashes();
-            latestAllowedHashes[fullPath] = calculatedHash;
-            this.saveAllowedHashes(latestAllowedHashes);
-            new Notice(
-              `EJS 템플릿이 즉시 승인되었습니다: ${rule.templatePath}`,
-            );
-            await this.updateStatusArea(rule, statusAreaEl, errorMsgEl);
-          })();
-        });
+        new ExtraButtonComponent(statusAreaEl)
+          .setIcon('check-square')
+          .setTooltip('승인')
+          .onClick(() => {
+            void (async () => {
+              const latestAllowedHashes = this.getAllowedHashes();
+              latestAllowedHashes[fullPath] = calculatedHash;
+              this.saveAllowedHashes(latestAllowedHashes);
+              new Notice(`EJS 템플릿이 승인되었습니다: ${rule.templatePath}`);
+              await this.updateStatusArea(rule, statusAreaEl, errorMsgEl);
+            })();
+          });
       }
     } catch (err) {
       const badge = statusAreaEl.createDiv('ejs-rule-status-icon missing');
-      badge.setAttribute('title', '해시 에러');
+      badge.setAttribute('title', '해시 오류');
       setIcon(badge, 'x');
 
       showError(
         errorMsgEl,
-        `템플릿 무결성 해시 분석 중 오류가 발생했습니다: ${err instanceof Error ? err.message : String(err)}`,
+        `템플릿 해시 분석 오류: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
   }
@@ -483,12 +479,12 @@ export class EjsManager extends BaseManager {
     rule: { pattern: string; templatePath: string },
     triggerUpdate: () => Promise<void>,
   ) {
-    const patternInput = mainRowEl.createEl('input', {
-      type: 'text',
-      placeholder: '^regex/.*',
-      value: rule.pattern,
-      cls: 'ejs-rule-pattern-input',
-    });
+    const textComp = new TextComponent(mainRowEl)
+      .setPlaceholder('^regex/.*')
+      .setValue(rule.pattern);
+
+    const patternInput = textComp.inputEl;
+    patternInput.addClass('ejs-rule-pattern-input');
 
     const checkRegexValidity = () => {
       const val = patternInput.value.trim();
@@ -508,9 +504,9 @@ export class EjsManager extends BaseManager {
       return isValid;
     };
 
-    patternInput.addEventListener('input', () => {
+    textComp.onChange((value) => {
       void (async () => {
-        rule.pattern = patternInput.value.trim();
+        rule.pattern = value.trim();
         await this.plugin.saveSettings();
         this.recompileRules();
         checkRegexValidity();
@@ -528,34 +524,27 @@ export class EjsManager extends BaseManager {
     templatesFolder: string,
     triggerUpdate: () => Promise<void>,
   ) {
-    const pathWrapper = mainRowEl.createDiv('ejs-template-path-wrapper');
-
-    const searchIconEl = pathWrapper.createDiv('ejs-template-path-icon');
-    setIcon(searchIconEl, 'search');
-
     const displayPath = stripFolderPrefix(rule.templatePath, templatesFolder);
-    const pathInput = pathWrapper.createEl('input', {
-      type: 'text',
-      placeholder: 'template-name.md',
-      value: displayPath,
-    });
+    const textComp = new TextComponent(mainRowEl)
+      .setPlaceholder('template-name.md')
+      .setValue(displayPath);
 
+    const pathInput = textComp.inputEl;
+    pathInput.addClass('ejs-rule-path-input');
     new FileSuggest(this.plugin.app, pathInput, templatesFolder);
 
-    const updateTemplatePath = () => {
+    textComp.onChange((value) => {
       void (async () => {
-        let saveVal = pathInput.value.trim();
+        let saveVal = value.trim();
         saveVal = stripFolderPrefix(saveVal, templatesFolder);
-        rule.templatePath = saveVal;
-        await this.plugin.saveSettings();
-        this.recompileRules();
+        if (rule.templatePath !== saveVal) {
+          rule.templatePath = saveVal;
+          await this.plugin.saveSettings();
+          this.recompileRules();
+        }
         await triggerUpdate();
       })();
-    };
-
-    pathInput.addEventListener('input', updateTemplatePath);
-    pathInput.addEventListener('change', updateTemplatePath);
-    pathInput.addEventListener('blur', updateTemplatePath);
+    });
   }
 
   private createControlButtons(
@@ -567,62 +556,56 @@ export class EjsManager extends BaseManager {
 
     // Move Up
     if (idx > 0) {
-      const upBtn = controlsEl.createEl('button', {
-        cls: 'ejs-rule-btn',
-        title: '위로 이동',
-      });
-      setIcon(upBtn, 'chevron-up');
-      upBtn.addEventListener('click', () => {
-        void (async () => {
-          const current = this.plugin.settings.ejsRules[idx];
-          const target = this.plugin.settings.ejsRules[idx - 1];
-          if (current && target) {
-            this.plugin.settings.ejsRules[idx - 1] = current;
-            this.plugin.settings.ejsRules[idx] = target;
-            await this.plugin.saveSettings();
-            this.recompileRules();
-            this.renderRules(rulesContainer);
-          }
-        })();
-      });
+      new ExtraButtonComponent(controlsEl)
+        .setIcon('chevron-up')
+        .setTooltip('위로 이동')
+        .onClick(() => {
+          void (async () => {
+            const current = this.plugin.settings.ejsRules[idx];
+            const target = this.plugin.settings.ejsRules[idx - 1];
+            if (current && target) {
+              this.plugin.settings.ejsRules[idx - 1] = current;
+              this.plugin.settings.ejsRules[idx] = target;
+              await this.plugin.saveSettings();
+              this.recompileRules();
+              this.renderRules(rulesContainer);
+            }
+          })();
+        });
     }
 
     // Move Down
     if (idx < this.plugin.settings.ejsRules.length - 1) {
-      const downBtn = controlsEl.createEl('button', {
-        cls: 'ejs-rule-btn',
-        title: '아래로 이동',
-      });
-      setIcon(downBtn, 'chevron-down');
-      downBtn.addEventListener('click', () => {
-        void (async () => {
-          const current = this.plugin.settings.ejsRules[idx];
-          const target = this.plugin.settings.ejsRules[idx + 1];
-          if (current && target) {
-            this.plugin.settings.ejsRules[idx + 1] = current;
-            this.plugin.settings.ejsRules[idx] = target;
-            await this.plugin.saveSettings();
-            this.recompileRules();
-            this.renderRules(rulesContainer);
-          }
-        })();
-      });
+      new ExtraButtonComponent(controlsEl)
+        .setIcon('chevron-down')
+        .setTooltip('아래로 이동')
+        .onClick(() => {
+          void (async () => {
+            const current = this.plugin.settings.ejsRules[idx];
+            const target = this.plugin.settings.ejsRules[idx + 1];
+            if (current && target) {
+              this.plugin.settings.ejsRules[idx + 1] = current;
+              this.plugin.settings.ejsRules[idx] = target;
+              await this.plugin.saveSettings();
+              this.recompileRules();
+              this.renderRules(rulesContainer);
+            }
+          })();
+        });
     }
 
     // Delete
-    const deleteBtn = controlsEl.createEl('button', {
-      cls: 'ejs-rule-btn delete-btn',
-      title: '규칙 삭제',
-    });
-    setIcon(deleteBtn, 'x');
-    deleteBtn.addEventListener('click', () => {
-      void (async () => {
-        this.plugin.settings.ejsRules.splice(idx, 1);
-        await this.plugin.saveSettings();
-        this.recompileRules();
-        this.renderRules(rulesContainer);
-      })();
-    });
+    new ExtraButtonComponent(controlsEl)
+      .setIcon('x')
+      .setTooltip('규칙 삭제')
+      .onClick(() => {
+        void (async () => {
+          this.plugin.settings.ejsRules.splice(idx, 1);
+          await this.plugin.saveSettings();
+          this.recompileRules();
+          this.renderRules(rulesContainer);
+        })();
+      });
   }
 
   renderSettings(containerEl: HTMLElement) {
@@ -664,7 +647,7 @@ export class EjsManager extends BaseManager {
     headerSetting.settingEl.addClass('ejs-rules-header');
 
     rulesContainer.createEl('p', {
-      text: '새로 생성되는 파일의 경로 패턴을 기반으로 자동 적용할 EJS 템플릿 파일을 정규식(Regex)으로 매핑합니다. 규칙은 위에서부터 순서대로 적용되며, 가장 먼저 일치하는 규칙이 우선 적용됩니다.',
+      text: '생성되는 파일 경로와 일치하는 EJS 템플릿을 자동으로 적용합니다. 위쪽에 위치한 규칙이 우선 적용됩니다.',
       cls: 'setting-item-description',
     });
 
@@ -672,13 +655,13 @@ export class EjsManager extends BaseManager {
 
     // 3. 승인된 템플릿 해시 초기화 설정 배치
     addButtonSetting(detailEl, {
-      name: '승인된 템플릿 해시 초기화',
-      desc: '로컬 스토리지에 저장되어 실행이 승인된 모든 EJS 템플릿의 SHA-256 해시 목록을 초기화합니다.',
-      buttonText: '해시 초기화',
+      name: '템플릿 승인 목록 초기화',
+      desc: '승인된 EJS 템플릿 해시 목록을 초기화합니다.',
+      buttonText: '목록 초기화',
       warning: true,
       onClick: () => {
         this.clearAllowedHashes();
-        new Notice('모든 EJS 템플릿 해시가 성공적으로 초기화되었습니다.');
+        new Notice('EJS 템플릿 승인 목록이 초기화되었습니다.');
         // Re-render status badges
         this.renderRules(rulesContainer);
       },

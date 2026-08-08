@@ -52,7 +52,7 @@ export class ImageConverterManager extends BaseManager {
         } else if (ext === 'md') {
           menu.addItem((item) => {
             item
-              .setTitle('노트 내 모든 이미지 WebP 변환')
+              .setTitle('노트 내 이미지 전체 WebP 변환')
               .setIcon('image-down')
               .onClick(() => void this.handleMarkdownMenuEvent(targetFile));
           });
@@ -143,7 +143,7 @@ export class ImageConverterManager extends BaseManager {
   ) {
     const originalSizeStr = formatBytes(originalSize);
     if (skipped) {
-      new Notice(`변환 건너뜀: ${basename}\n(${originalSizeStr})`);
+      new Notice(`변환 생략: ${basename} (${originalSizeStr})`);
       return;
     }
     const createdSizeStr = formatBytes(convertedSize);
@@ -151,7 +151,7 @@ export class ImageConverterManager extends BaseManager {
       ((originalSize - convertedSize) / originalSize) * 100,
     );
     new Notice(
-      `변환 완료: ${basename}\n(${originalSizeStr} -> ${createdSizeStr} ${ratio}%)`,
+      `WebP 변환 완료: ${basename} (${originalSizeStr} → ${createdSizeStr}, -${ratio}%)`,
     );
   }
 
@@ -229,7 +229,7 @@ export class ImageConverterManager extends BaseManager {
   ): Promise<void> {
     const activeFile = this.plugin.app.workspace.getActiveFile();
     if (!activeFile) {
-      new Notice('이미지를 첨부할 활성 파일이 없습니다.');
+      new Notice('이미지를 첨부할 활성 노트가 없습니다.');
       return;
     }
 
@@ -317,7 +317,7 @@ export class ImageConverterManager extends BaseManager {
       );
 
     if (linkedImageFiles.length === 0) {
-      new Notice('이 노트에서 변환 가능한 링크된 이미지를 찾지 못했습니다.');
+      new Notice('변환 가능한 이미지를 찾지 못했습니다.');
       return;
     }
 
@@ -343,9 +343,7 @@ export class ImageConverterManager extends BaseManager {
       }
     });
 
-    new Notice(
-      `이 노트에서 링크된 이미지 ${successCount}개를 WebP로 변환했습니다.`,
-    );
+    new Notice(`이미지 ${successCount}개 WebP 변환 완료`);
   }
 
   renderSettings(containerEl: HTMLElement) {
@@ -360,8 +358,8 @@ export class ImageConverterManager extends BaseManager {
     );
 
     addValidatedTextSetting(detailEl, {
-      name: 'WebP 이미지 품질',
-      desc: '변환될 WebP 이미지의 품질을 설정합니다 (0-100). 품질이 높을수록 파일 크기가 커집니다.',
+      name: 'WebP 품질',
+      desc: '변환할 WebP 이미지 품질을 설정합니다 (0-100).',
       initialValue: String(this.plugin.settings.webpQuality),
       inputType: 'number',
       min: '0',
@@ -369,10 +367,10 @@ export class ImageConverterManager extends BaseManager {
       validate: (value) => {
         const num = parseInt(value, 10);
         if (value.trim() === '' || isNaN(num)) {
-          return '숫자를 입력해 주세요.';
+          return '올바른 숫자를 입력해 주세요.';
         }
         if (num < 0 || num > 100) {
-          return '품질 값은 0에서 100 사이의 숫자여야 합니다.';
+          return '0에서 100 사이의 숫자를 입력해 주세요.';
         }
         return null;
       },
@@ -383,8 +381,8 @@ export class ImageConverterManager extends BaseManager {
     });
 
     addValidatedTextSetting(detailEl, {
-      name: 'WebP 이미지 저장 경로',
-      desc: '변환된 WebP 이미지를 저장할 폴더 경로를 설정합니다.',
+      name: 'WebP 저장 경로',
+      desc: '변환된 WebP 이미지가 저장될 폴더 경로입니다.',
       initialValue: this.plugin.settings.imageStorePath || '',
       onSetupText: (text) => new FolderSuggest(this.plugin.app, text.inputEl),
       validate: (value) =>

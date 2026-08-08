@@ -1,5 +1,15 @@
 import { App, PluginSettingTab } from 'obsidian';
 import type AllInOneToolkitPlugin from './main';
+import { DEFAULT_MARKDOWNLINT_RULES } from './constants/markdownlint-rules';
+
+export type {
+  MarkdownlintSubOptionMetadata,
+  MarkdownlintRuleMetadata,
+} from './constants/markdownlint-rules';
+export {
+  MARKDOWNLINT_ALL_RULES,
+  DEFAULT_MARKDOWNLINT_RULES,
+} from './constants/markdownlint-rules';
 
 export interface EjsRule {
   pattern: string;
@@ -13,6 +23,7 @@ export interface ToolkitSettings {
   imageConverterEnabled: boolean;
   trashManagerEnabled: boolean;
   ejsEnabled: boolean;
+  markdownlintEnabled: boolean;
 
   // Image converter
   webpQuality: number;
@@ -24,6 +35,10 @@ export interface ToolkitSettings {
   ejsRules: EjsRule[];
   // Periodic notes
   periodicNotesFolder: string;
+  // Markdownlint
+  autofixOnSave: boolean;
+  markdownlintIgnoredFolders: string[];
+  markdownlintRules: Record<string, boolean | Record<string, unknown>>;
 }
 
 export const DEFAULT_SETTINGS: ToolkitSettings = {
@@ -32,6 +47,7 @@ export const DEFAULT_SETTINGS: ToolkitSettings = {
   imageConverterEnabled: true,
   trashManagerEnabled: true,
   ejsEnabled: true,
+  markdownlintEnabled: true,
 
   webpQuality: 85,
   imageStorePath: '[assets]/YYYY',
@@ -39,6 +55,9 @@ export const DEFAULT_SETTINGS: ToolkitSettings = {
   ejsTemplatesFolder: 'Templates',
   ejsRules: [],
   periodicNotesFolder: 'Periodic Notes',
+  autofixOnSave: true,
+  markdownlintIgnoredFolders: [],
+  markdownlintRules: { ...DEFAULT_MARKDOWNLINT_RULES },
 };
 
 export class AllInOneToolkitSettingTab extends PluginSettingTab {
@@ -53,7 +72,6 @@ export class AllInOneToolkitSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    // Iterate over managers to dynamically render their settings
     this.plugin.managers.forEach((manager) => {
       manager.renderSettings(containerEl);
     });
