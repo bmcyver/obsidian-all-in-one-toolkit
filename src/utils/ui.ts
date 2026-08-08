@@ -45,14 +45,14 @@ export function createToggleSection(
         void (async () => {
           await onToggle(value);
           if (detailEl) {
-            detailEl.style.display = value ? '' : 'none';
+            detailEl.toggleClass('is-hidden', !value);
           }
         })();
       });
     });
 
   detailEl = containerEl.createDiv();
-  detailEl.style.display = initialValue ? '' : 'none';
+  detailEl.toggleClass('is-hidden', !initialValue);
 
   return detailEl;
 }
@@ -173,7 +173,7 @@ export function addButtonSetting(
       })();
     });
     if (options.warning) {
-      button.buttonEl.addClass('mod-warning');
+      button.setDestructive().setCta();
     }
   });
 

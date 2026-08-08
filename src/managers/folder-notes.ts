@@ -120,7 +120,7 @@ export class FolderNoteManager extends BaseManager {
         } else {
           menu.addItem((item) => {
             item
-              .setTitle('폴더 노트 제거')
+              .setTitle('폴더 노트 삭제')
               .setIcon('trash')
               .onClick(() => {
                 void this.deleteFolderNote(noteFile);
@@ -486,9 +486,7 @@ export class FolderNoteManager extends BaseManager {
       await this.plugin.app.fileManager.trashFile(noteFile);
       this.triggerStyleRefresh();
     } catch (err) {
-      new Notice(
-        `폴더 노트를 삭제하는 데 실패했습니다: ${(err as Error).message}`,
-      );
+      new Notice(`폴더 노트 삭제 실패: ${(err as Error).message}`);
     }
   }
 
@@ -509,8 +507,8 @@ export class FolderNoteManager extends BaseManager {
     );
 
     addDropdownSetting(detailEl, {
-      name: '기본 생성 확장자',
-      desc: '폴더 노트를 새로 생성할 때 사용할 기본 파일 확장자를 선택합니다.',
+      name: '기본 확장자',
+      desc: '폴더 노트 생성 시 사용할 기본 확장자를 선택합니다.',
       initialValue: this.plugin.settings.folderNoteExtension,
       options: Object.fromEntries(
         SUPPORTED_EXTENSIONS.map((ext) => [ext, `.${ext}`]),

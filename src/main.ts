@@ -8,6 +8,7 @@ import { FolderNoteManager } from './managers/folder-notes';
 import { ImageConverterManager } from './managers/image-converter';
 import { TrashManager } from './managers/trash-manager';
 import { EjsManager } from './managers/ejs-manager';
+import { MarkdownlintManager } from './managers/markdownlint';
 
 export default class AllInOneToolkitPlugin extends Plugin {
   declare settings: ToolkitSettings;
@@ -23,6 +24,7 @@ export default class AllInOneToolkitPlugin extends Plugin {
       new ImageConverterManager(this),
       new TrashManager(this),
       new EjsManager(this),
+      new MarkdownlintManager(this),
     );
 
     // 2. Load all managers when layout is ready

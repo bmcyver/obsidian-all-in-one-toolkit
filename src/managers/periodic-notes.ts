@@ -101,7 +101,7 @@ export class PeriodicNotesManager extends BaseManager {
 
     addValidatedTextSetting(detailEl, {
       name: '주기적 노트 저장 폴더',
-      desc: '주기적 노트(주간/월간/연간)가 생성 및 저장될 폴더 경로를 설정합니다.',
+      desc: '주기적 노트가 저장될 폴더 경로를 설정합니다.',
       initialValue: this.plugin.settings.periodicNotesFolder || '',
       onSetupText: (text) => new FolderSuggest(this.plugin.app, text.inputEl),
       validate: (val) =>
