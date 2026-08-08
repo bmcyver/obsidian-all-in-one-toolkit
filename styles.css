@@ -22,7 +22,7 @@
    ========================================================================== */
 
 .tk-trash-modal {
-  --modal-max-width: 540px;
+  --modal-width: 540px;
 }
 
 .tk-trash-action-bar {
@@ -129,6 +129,11 @@
   color: var(--text-muted);
 }
 
+.tk-trash-stats-text {
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+}
+
 .tk-trash-item-meta {
   display: flex;
   align-items: center;
@@ -191,6 +196,11 @@
 .ejs-rule-pattern-input {
   flex: 1 1 140px;
   min-width: 0;
+}
+
+.ejs-rule-pattern-input.is-invalid {
+  border-color: var(--text-error) !important;
+  box-shadow: 0 0 0 1px var(--text-error) !important;
 }
 
 .ejs-rule-path-input {

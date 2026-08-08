@@ -1,4 +1,4 @@
-import { type Editor, Notice, TFile } from 'obsidian';
+import { type Editor, Notice, Setting, TFile } from 'obsidian';
 import {
   SUPPORTED_IMAGE_EXTENSIONS,
   CONVERTED_NAME_REGEX,
@@ -16,7 +16,12 @@ import {
 import { BaseManager } from './base';
 import { FolderSuggest } from '../ui/folder-suggest';
 import { DEFAULT_SETTINGS } from '../settings';
-import { createToggleSection, addValidatedTextSetting } from '../utils/ui';
+import {
+  createToggleSection,
+  addErrorContainer,
+  showError,
+  clearError,
+} from '../utils/ui';
 import { limitConcurrency } from '../utils/async';
 
 export class ImageConverterManager extends BaseManager {
@@ -36,7 +41,7 @@ export class ImageConverterManager extends BaseManager {
   }
 
   onload() {
-    this.plugin.registerEvent(
+    this.registerEventRef(
       this.plugin.app.workspace.on('file-menu', (menu, targetFile) => {
         if (!this.isEnabled()) return;
         if (!(targetFile instanceof TFile)) return;
@@ -61,7 +66,7 @@ export class ImageConverterManager extends BaseManager {
     );
 
     // Paste handler
-    this.plugin.registerEvent(
+    this.registerEventRef(
       this.plugin.app.workspace.on(
         'editor-paste',
         (evt: ClipboardEvent, editor: Editor) => {
@@ -69,8 +74,7 @@ export class ImageConverterManager extends BaseManager {
           if (!evt.clipboardData?.items || evt.defaultPrevented) return;
 
           const files: File[] = [];
-          for (let i = 0; i < evt.clipboardData.items.length; i++) {
-            const item = evt.clipboardData.items[i];
+          for (const item of Array.from(evt.clipboardData.items)) {
             if (item?.kind === 'file') {
               const file = item.getAsFile();
               if (file && isValidImageFile(file)) {
@@ -89,7 +93,7 @@ export class ImageConverterManager extends BaseManager {
     );
 
     // Drop handler
-    this.plugin.registerEvent(
+    this.registerEventRef(
       this.plugin.app.workspace.on(
         'editor-drop',
         (evt: DragEvent, editor: Editor) => {
@@ -97,8 +101,7 @@ export class ImageConverterManager extends BaseManager {
           if (!evt.dataTransfer?.files || evt.defaultPrevented) return;
 
           const files: File[] = [];
-          for (let i = 0; i < evt.dataTransfer.files.length; i++) {
-            const file = evt.dataTransfer.files[i];
+          for (const file of Array.from(evt.dataTransfer.files)) {
             if (file && isValidImageFile(file)) {
               files.push(file);
             }
@@ -148,7 +151,7 @@ export class ImageConverterManager extends BaseManager {
     }
     const createdSizeStr = formatBytes(convertedSize);
     const ratio = Math.round(
-      ((originalSize - convertedSize) / originalSize) * 100,
+      ((originalSize - convertedSize) / Math.max(1, originalSize)) * 100,
     );
     new Notice(
       `WebP 변환 완료: ${basename} (${originalSizeStr} → ${createdSizeStr}, -${ratio}%)`,
@@ -167,10 +170,8 @@ export class ImageConverterManager extends BaseManager {
     const sourceExtension = sourceFile.extension.toLowerCase();
     const shouldSkipConversion = isAvifFile(sourceExtension);
 
-    // Resolve target basename: prioritize passed noteBasename, fallback to backlink notes, fallback to image basename
     let targetBasename = noteBasename;
     if (!targetBasename) {
-      const backlinks: string[] = [];
       const targetPath = sourceFile.path;
       for (const [sourcePath, links] of Object.entries(
         this.plugin.app.metadataCache.resolvedLinks,
@@ -178,11 +179,14 @@ export class ImageConverterManager extends BaseManager {
         if (links[targetPath]) {
           const file = this.plugin.app.vault.getFileByPath(sourcePath);
           if (file) {
-            backlinks.push(file.basename);
+            targetBasename = file.basename;
+            break;
           }
         }
       }
-      targetBasename = backlinks[0] || sourceFile.basename;
+      if (!targetBasename) {
+        targetBasename = sourceFile.basename;
+      }
     }
 
     const destinationPath = this.buildAssetPath(
@@ -205,11 +209,11 @@ export class ImageConverterManager extends BaseManager {
           destinationPath,
         );
       } else {
-        await this.plugin.app.vault.modifyBinary(sourceFile, outputData);
         await this.plugin.app.fileManager.renameFile(
           sourceFile,
           destinationPath,
         );
+        await this.plugin.app.vault.modifyBinary(sourceFile, outputData);
       }
 
       this.showConversionNotice(
@@ -219,7 +223,9 @@ export class ImageConverterManager extends BaseManager {
         shouldSkipConversion,
       );
     } catch (err) {
-      new Notice(`이미지 변환 실패: ${(err as Error).message}`);
+      new Notice(
+        `이미지 변환 실패 (${sourceFile.basename}): ${(err as Error).message}`,
+      );
     }
   }
 
@@ -269,19 +275,21 @@ export class ImageConverterManager extends BaseManager {
             skipped: shouldSkipConversion,
           };
         } catch (err) {
-          new Notice(`${sourceFile.name} 변환 실패: ${(err as Error).message}`);
+          new Notice(
+            `이미지 변환 실패 (${sourceFile.name}): ${(err as Error).message}`,
+          );
           return null;
         }
       },
     );
 
     const markdownLinks: string[] = [];
-    results.forEach((res) => {
+    for (const res of results) {
       if (res) {
         createdFiles.push(res);
         markdownLinks.push(`![[${res.file.path}]]`);
       }
-    });
+    }
 
     if (markdownLinks.length > 0) {
       editor.replaceSelection(markdownLinks.join('\n'));
@@ -308,13 +316,16 @@ export class ImageConverterManager extends BaseManager {
       return;
     }
 
-    const linkedImageFiles = Object.keys(resolvedLinks)
-      .map((link) => this.plugin.app.vault.getFileByPath(link))
-      .filter(
-        (file): file is TFile =>
-          file instanceof TFile &&
-          SUPPORTED_IMAGE_EXTENSIONS.includes(file.extension.toLowerCase()),
-      );
+    const linkedImageFiles: TFile[] = [];
+    for (const link of Object.keys(resolvedLinks)) {
+      const file = this.plugin.app.vault.getFileByPath(link);
+      if (
+        file instanceof TFile &&
+        SUPPORTED_IMAGE_EXTENSIONS.includes(file.extension.toLowerCase())
+      ) {
+        linkedImageFiles.push(file);
+      }
+    }
 
     if (linkedImageFiles.length === 0) {
       new Notice('변환 가능한 이미지를 찾지 못했습니다.');
@@ -334,14 +345,16 @@ export class ImageConverterManager extends BaseManager {
       },
     );
 
-    const successCount = results.filter((r) => r.status === 'fulfilled').length;
-    results.forEach((r) => {
-      if (r.status === 'rejected') {
+    let successCount = 0;
+    for (const r of results) {
+      if (r.status === 'fulfilled') {
+        successCount++;
+      } else if (r.status === 'rejected') {
         const errorMsg =
           r.reason instanceof Error ? r.reason.message : String(r.reason);
-        new Notice(`${r.file.name} 변환 실패: ${errorMsg}`);
+        new Notice(`이미지 변환 실패 (${r.file.name}): ${errorMsg}`);
       }
-    });
+    }
 
     new Notice(`이미지 ${successCount}개 WebP 변환 완료`);
   }
@@ -357,42 +370,61 @@ export class ImageConverterManager extends BaseManager {
       },
     );
 
-    addValidatedTextSetting(detailEl, {
-      name: 'WebP 품질',
-      desc: '변환할 WebP 이미지 품질을 설정합니다 (0-100).',
-      initialValue: String(this.plugin.settings.webpQuality),
-      inputType: 'number',
-      min: '0',
-      max: '100',
-      validate: (value) => {
-        const num = parseInt(value, 10);
-        if (value.trim() === '' || isNaN(num)) {
-          return '올바른 숫자를 입력해 주세요.';
-        }
-        if (num < 0 || num > 100) {
-          return '0에서 100 사이의 숫자를 입력해 주세요.';
-        }
-        return null;
-      },
-      onChange: async (value) => {
-        this.plugin.settings.webpQuality = parseInt(value, 10);
-        await this.plugin.saveSettings();
-      },
+    const qualitySetting = new Setting(detailEl)
+      .setName('WebP 품질')
+      .setDesc('변환할 WebP 이미지 품질을 설정합니다 (0-100).');
+
+    const qualityErrorEl = addErrorContainer(qualitySetting);
+
+    qualitySetting.addText((text) => {
+      text.inputEl.type = 'number';
+      text.inputEl.min = '0';
+      text.inputEl.max = '100';
+      text.setValue(String(this.plugin.settings.webpQuality));
+
+      text.onChange((value) => {
+        void (async () => {
+          const num = parseInt(value, 10);
+          if (value.trim() === '' || isNaN(num)) {
+            showError(qualityErrorEl, '올바른 숫자를 입력해 주세요.');
+            return;
+          }
+          if (num < 0 || num > 100) {
+            showError(qualityErrorEl, '0에서 100 사이의 숫자를 입력해 주세요.');
+            return;
+          }
+          clearError(qualityErrorEl);
+          this.plugin.settings.webpQuality = num;
+          await this.plugin.saveSettings();
+        })();
+      });
     });
 
-    addValidatedTextSetting(detailEl, {
-      name: 'WebP 저장 경로',
-      desc: '변환된 WebP 이미지가 저장될 폴더 경로입니다.',
-      initialValue: this.plugin.settings.imageStorePath || '',
-      onSetupText: (text) => new FolderSuggest(this.plugin.app, text.inputEl),
-      validate: (value) =>
-        !isValidPath(value.trim())
-          ? '경로에 사용할 수 없는 문자가 포함되어 있습니다.'
-          : null,
-      onChange: async (value) => {
-        this.plugin.settings.imageStorePath = value.trim();
-        await this.plugin.saveSettings();
-      },
+    const pathSetting = new Setting(detailEl)
+      .setName('WebP 저장 경로')
+      .setDesc('변환된 WebP 이미지가 저장될 폴더 경로입니다.');
+
+    const pathErrorEl = addErrorContainer(pathSetting);
+
+    pathSetting.addText((text) => {
+      text.setValue(this.plugin.settings.imageStorePath || '');
+      new FolderSuggest(this.plugin.app, text.inputEl);
+
+      text.onChange((value) => {
+        void (async () => {
+          const trimmed = value.trim();
+          if (!isValidPath(trimmed)) {
+            showError(
+              pathErrorEl,
+              '경로에 사용할 수 없는 문자가 포함되어 있습니다.',
+            );
+            return;
+          }
+          clearError(pathErrorEl);
+          this.plugin.settings.imageStorePath = trimmed;
+          await this.plugin.saveSettings();
+        })();
+      });
     });
   }
 }

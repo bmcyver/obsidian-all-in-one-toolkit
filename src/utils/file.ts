@@ -2,26 +2,28 @@ import { type App, normalizePath } from 'obsidian';
 
 /**
  * Ensures that all directories in the given file path exist.
- * If not, it creates them recursively.
+ * Creates missing parent directories recursively.
  */
 export async function ensureDirectoryExists(
   app: App,
   filePath: string,
 ): Promise<void> {
   const normalized = normalizePath(filePath);
-  const parts = normalized.split('/').filter((p) => p);
-  if (parts.length <= 1) return;
+  const lastSlashIndex = normalized.lastIndexOf('/');
+  if (lastSlashIndex <= 0) return;
 
-  // Remove filename
-  parts.pop();
+  const dirPath = normalized.slice(0, lastSlashIndex);
+  const parts = dirPath.split('/');
 
   let currentPath = '';
-  for (const part of parts) {
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    if (!part) continue;
     currentPath = currentPath ? `${currentPath}/${part}` : part;
     try {
       await app.vault.createFolder(currentPath);
     } catch {
-      // Ignore folder exists error
+      // Folder already exists or creation ignored
     }
   }
 }
@@ -47,24 +49,30 @@ export function normalizeFileName(name: string): string {
   return name
     .normalize('NFC')
     .replace(/[\\/:*?"<>|[\]#^]/g, '')
+    .trim()
     .replace(/\s+/g, '_')
     .replace(/_+/g, '_')
     .replace(/^_+|_+$/g, '');
 }
 
+const BYTE_UNITS = ['B', 'KB', 'MB', 'GB'] as const;
+
 /**
  * Formats bytes to human-readable size string (e.g. 1.2 MB).
  */
 export function formatBytes(bytes: number): string {
-  if (bytes === 0) return '0 B';
+  if (bytes <= 0) return '0 B';
   const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  const i = Math.min(
+    Math.floor(Math.log(bytes) / Math.log(k)),
+    BYTE_UNITS.length - 1,
+  );
+  const value = bytes / Math.pow(k, i);
+  return `${value.toFixed(1)} ${BYTE_UNITS[i]}`;
 }
 
 /**
- * Checks if the given path contains invalid characters.
+ * Checks if the given path contains invalid characters for files/folders.
  */
 export function isValidPath(path: string): boolean {
   return !/[*?"<>|:]/.test(path);
@@ -74,8 +82,10 @@ export function isValidPath(path: string): boolean {
  * Strips the folder prefix from a display path if it starts with the specified folder.
  */
 export function stripFolderPrefix(path: string, folder: string): string {
-  if (path.toLowerCase().startsWith(folder.toLowerCase() + '/')) {
-    return path.slice(folder.length + 1);
+  if (!folder) return path;
+  const prefix = folder.endsWith('/') ? folder : `${folder}/`;
+  if (path.toLowerCase().startsWith(prefix.toLowerCase())) {
+    return path.slice(prefix.length);
   }
   return path;
 }

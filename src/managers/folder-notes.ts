@@ -4,24 +4,21 @@ import {
   type WorkspaceLeaf,
   Notice,
   normalizePath,
+  Setting,
 } from 'obsidian';
 import type { WorkspaceWindow } from 'obsidian';
 import { splitFileName } from '../utils/file';
 import { BaseManager } from './base';
-import { createToggleSection, addDropdownSetting } from '../utils/ui';
+import { createToggleSection } from '../utils/ui';
 
-export const SUPPORTED_EXTENSIONS = ['base', 'md', 'canvas'];
+export const SUPPORTED_EXTENSIONS = ['base', 'md', 'canvas'] as const;
 const NAV_FILES_CONTAINER = '.nav-files-container';
 
 export class FolderNoteManager extends BaseManager {
   private fileExplorerLeaves: WorkspaceLeaf[] = [];
   private observers: MutationObserver[] = [];
   private frameId: number | null = null;
-
-  private pendingFiles: Set<Element> = new Set();
-  private pendingFolders: Set<Element> = new Set();
-  private fullRefreshPending = false;
-  private pendingContainer: Element | null = null;
+  private refreshPending = false;
   private windows: Set<Window> = new Set();
   private folderNotePaths: Set<string> = new Set();
 
@@ -38,12 +35,9 @@ export class FolderNoteManager extends BaseManager {
   }
 
   onload() {
-    // bindObservers() requires workspace layout to be ready.
-    // BaseManager.enable() is called within app.workspace.onLayoutReady in main.ts,
-    // so the layout is guaranteed to be ready when onload() is executed.
     this.bindObservers();
 
-    this.plugin.registerEvent(
+    this.registerEventRef(
       this.plugin.app.workspace.on('layout-change', () => {
         if (this.isEnabled()) {
           this.bindObservers();
@@ -53,16 +47,14 @@ export class FolderNoteManager extends BaseManager {
 
     this.rebuildFolderNotePathsCache();
 
-    // Register click event listener on the main window
     window.addEventListener('click', this.onClick, { capture: true });
     this.windows.add(window);
 
-    this.plugin.registerEvent(
+    this.registerEventRef(
       this.plugin.app.workspace.on('window-open', this.windowOpenListener),
     );
 
-    // Register file system events to update the folderNotePaths cache dynamically
-    this.plugin.registerEvent(
+    this.registerEventRef(
       this.plugin.app.vault.on('create', (file) => {
         if (!this.isEnabled()) return;
         if (file instanceof TFile && this.isFolderNotePath(file.path)) {
@@ -72,7 +64,7 @@ export class FolderNoteManager extends BaseManager {
       }),
     );
 
-    this.plugin.registerEvent(
+    this.registerEventRef(
       this.plugin.app.vault.on('delete', (file) => {
         if (!this.isEnabled()) return;
         if (file instanceof TFile && this.isFolderNotePath(file.path)) {
@@ -82,7 +74,7 @@ export class FolderNoteManager extends BaseManager {
       }),
     );
 
-    this.plugin.registerEvent(
+    this.registerEventRef(
       this.plugin.app.vault.on('rename', (file, oldPath) => {
         if (!this.isEnabled()) return;
         if (file instanceof TFile) {
@@ -102,7 +94,7 @@ export class FolderNoteManager extends BaseManager {
       }),
     );
 
-    this.plugin.registerEvent(
+    this.registerEventRef(
       this.plugin.app.workspace.on('file-menu', (menu, folder) => {
         if (!this.isEnabled()) return;
         if (!(folder instanceof TFolder)) return;
@@ -135,6 +127,7 @@ export class FolderNoteManager extends BaseManager {
     this.disconnectObservers();
     if (this.frameId !== null) {
       window.cancelAnimationFrame(this.frameId);
+      this.frameId = null;
     }
     for (const win of this.windows) {
       try {
@@ -203,54 +196,10 @@ export class FolderNoteManager extends BaseManager {
         leaf.view.containerEl.querySelector(NAV_FILES_CONTAINER);
       if (!container) continue;
 
-      this.scheduleRefresh(container);
+      this.scheduleRefresh();
 
-      const observer = new MutationObserver((mutations) => {
-        let addedFiles: Element[] = [];
-        let addedFolders: Element[] = [];
-        let needFullRefresh = false;
-
-        for (const m of mutations) {
-          if (m.type === 'childList') {
-            m.addedNodes.forEach((node) => {
-              if (node.nodeType === 1) {
-                const element = node as Element;
-                if (element.classList.contains('nav-file')) {
-                  addedFiles.push(element);
-                } else if (element.classList.contains('nav-folder')) {
-                  addedFolders.push(element);
-                } else {
-                  element
-                    .querySelectorAll('.nav-file')
-                    .forEach((el) => addedFiles.push(el));
-                  element
-                    .querySelectorAll('.nav-folder')
-                    .forEach((el) => addedFolders.push(el));
-                }
-              }
-            });
-            if (m.removedNodes.length > 0) {
-              needFullRefresh = true;
-            }
-          } else if (
-            m.type === 'attributes' &&
-            m.attributeName === 'data-path'
-          ) {
-            if (m.target.nodeType === 1) {
-              const element = m.target as Element;
-              const fileEl = element.closest('.nav-file');
-              const folderEl = element.closest('.nav-folder');
-              if (fileEl) addedFiles.push(fileEl);
-              if (folderEl) addedFolders.push(folderEl);
-            }
-          }
-        }
-
-        if (needFullRefresh) {
-          this.scheduleRefresh(container);
-        } else if (addedFiles.length > 0 || addedFolders.length > 0) {
-          this.scheduleRefresh(container, addedFiles, addedFolders);
-        }
+      const observer = new MutationObserver(() => {
+        this.scheduleRefresh();
       });
 
       observer.observe(container, {
@@ -263,40 +212,14 @@ export class FolderNoteManager extends BaseManager {
     }
   }
 
-  private scheduleRefresh(
-    container: Element,
-    targetFiles?: Iterable<Element>,
-    targetFolders?: Iterable<Element>,
-  ) {
-    this.pendingContainer = container;
-    if (targetFiles) {
-      for (const f of targetFiles) this.pendingFiles.add(f);
-    } else {
-      this.fullRefreshPending = true;
-    }
-    if (targetFolders) {
-      for (const f of targetFolders) this.pendingFolders.add(f);
-    } else {
-      this.fullRefreshPending = true;
-    }
-
+  private scheduleRefresh() {
+    this.refreshPending = true;
     if (this.frameId !== null) return;
     this.frameId = window.requestAnimationFrame(() => {
-      if (this.pendingContainer) {
-        if (this.fullRefreshPending) {
-          this.refreshFolderStyles(this.pendingContainer);
-        } else {
-          this.refreshFolderStyles(
-            this.pendingContainer,
-            this.pendingFiles,
-            this.pendingFolders,
-          );
-        }
+      if (this.refreshPending) {
+        this.refreshFolderStyles();
       }
-      this.pendingFiles.clear();
-      this.pendingFolders.clear();
-      this.fullRefreshPending = false;
-      this.pendingContainer = null;
+      this.refreshPending = false;
       this.frameId = null;
     });
   }
@@ -305,7 +228,6 @@ export class FolderNoteManager extends BaseManager {
     if (!this.isEnabled()) return;
     const target = evt.target as HTMLElement;
 
-    // File Explorer clicks
     const container = target.closest(NAV_FILES_CONTAINER);
     if (container) {
       this.handleExplorerClick(evt, target);
@@ -343,97 +265,100 @@ export class FolderNoteManager extends BaseManager {
   }
 
   triggerStyleRefresh() {
-    // If disabled, just clear folder styles and return
     if (!this.isEnabled()) {
       this.clearFolderStyles();
       return;
     }
-    for (const leaf of this.fileExplorerLeaves) {
-      const container =
-        leaf.view.containerEl.querySelector(NAV_FILES_CONTAINER);
-      if (container) {
-        this.scheduleRefresh(container);
-      }
-    }
+    this.scheduleRefresh();
   }
 
   private rebuildFolderNotePathsCache() {
     this.folderNotePaths.clear();
-    for (const file of this.plugin.app.vault.getFiles()) {
+    const files = this.plugin.app.vault.getFiles();
+    for (const file of files) {
       if (this.isFolderNotePath(file.path)) {
         this.folderNotePaths.add(file.path);
       }
     }
   }
 
-  private refreshFolderStyles(
-    container: Element,
-    targetFiles?: Iterable<Element>,
-    targetFolders?: Iterable<Element>,
-  ) {
-    if (!this.isEnabled()) {
-      return;
-    }
-    const fileElements = Array.from(
-      targetFiles ?? container.querySelectorAll('.nav-file'),
-    );
-    fileElements.forEach((el) => {
-      const titleEl = el.querySelector(':scope > .nav-file-title');
-      if (!titleEl) return;
-      const path = titleEl.getAttribute('data-path');
-      if (!path) return;
+  private refreshFolderStyles() {
+    if (!this.isEnabled()) return;
 
-      const isNote = this.isFolderNotePath(path);
-      const hasClass = el.classList.contains('fn-hidden-file');
+    for (const leaf of this.fileExplorerLeaves) {
+      const container =
+        leaf.view.containerEl.querySelector(NAV_FILES_CONTAINER);
+      if (!container) continue;
 
-      if (isNote && !hasClass) {
-        el.classList.add('fn-hidden-file');
-      } else if (!isNote && hasClass) {
-        el.classList.remove('fn-hidden-file');
-      }
-    });
+      const fileElements = container.querySelectorAll('.nav-file');
+      for (let i = 0; i < fileElements.length; i++) {
+        const el = fileElements[i]!;
+        const titleEl = el.querySelector(':scope > .nav-file-title');
+        if (!titleEl) continue;
+        const path = titleEl.getAttribute('data-path');
+        if (!path) continue;
 
-    const folderElements = Array.from(
-      targetFolders ?? container.querySelectorAll('.nav-folder'),
-    );
+        const isNote = this.isFolderNotePath(path);
+        const hasClass = el.classList.contains('fn-hidden-file');
 
-    folderElements.forEach((el) => {
-      const titleEl = el.querySelector(':scope > .nav-folder-title');
-      if (!titleEl) return;
-
-      const path = titleEl.getAttribute('data-path');
-      if (path === null) return;
-      const normalizedPath = this.normalizeFolderPath(path);
-      const parts = normalizedPath.split('/');
-      const folderName = parts[parts.length - 1] ?? '';
-
-      let hasNote = false;
-      if (normalizedPath && folderName && folderName !== '/') {
-        const prefix = `${normalizedPath}/`;
-        for (const ext of SUPPORTED_EXTENSIONS) {
-          const potentialPath = `${prefix}${folderName}.${ext}`;
-          if (this.folderNotePaths.has(potentialPath)) {
-            hasNote = true;
-            break;
-          }
+        if (isNote && !hasClass) {
+          el.classList.add('fn-hidden-file');
+        } else if (!isNote && hasClass) {
+          el.classList.remove('fn-hidden-file');
         }
       }
 
-      const hasClass = titleEl.classList.contains('has-folder-note');
+      const folderElements = container.querySelectorAll('.nav-folder');
+      for (let i = 0; i < folderElements.length; i++) {
+        const el = folderElements[i]!;
+        const titleEl = el.querySelector(':scope > .nav-folder-title');
+        if (!titleEl) continue;
 
-      if (hasNote && !hasClass) {
-        titleEl.classList.add('has-folder-note');
-      } else if (!hasNote && hasClass) {
-        titleEl.classList.remove('has-folder-note');
+        const path = titleEl.getAttribute('data-path');
+        if (path === null) continue;
+        const normalizedPath = this.normalizeFolderPath(path);
+        const lastSlashIndex = normalizedPath.lastIndexOf('/');
+        const folderName =
+          lastSlashIndex >= 0
+            ? normalizedPath.slice(lastSlashIndex + 1)
+            : normalizedPath;
+
+        let hasNote = false;
+        if (normalizedPath && folderName && folderName !== '/') {
+          const prefix = `${normalizedPath}/${folderName}.`;
+          for (let j = 0; j < SUPPORTED_EXTENSIONS.length; j++) {
+            if (this.folderNotePaths.has(prefix + SUPPORTED_EXTENSIONS[j])) {
+              hasNote = true;
+              break;
+            }
+          }
+        }
+
+        const hasClass = titleEl.classList.contains('has-folder-note');
+
+        if (hasNote && !hasClass) {
+          titleEl.classList.add('has-folder-note');
+        } else if (!hasNote && hasClass) {
+          titleEl.classList.remove('has-folder-note');
+        }
       }
-    });
+    }
   }
 
   isFolderNotePath(filePath: string): boolean {
     const normalized = filePath.replace(/\/+$/, '');
-    const parts = normalized.split('/');
-    const fileNameWithExt = parts.pop() ?? '';
-    const parentFolderName = parts.length > 0 ? parts[parts.length - 1] : '';
+    const lastSlash = normalized.lastIndexOf('/');
+    const fileNameWithExt =
+      lastSlash >= 0 ? normalized.slice(lastSlash + 1) : normalized;
+
+    const parentSlash =
+      lastSlash >= 0 ? normalized.lastIndexOf('/', lastSlash - 1) : -1;
+    const parentFolderName =
+      lastSlash >= 0
+        ? parentSlash >= 0
+          ? normalized.slice(parentSlash + 1, lastSlash)
+          : normalized.slice(0, lastSlash)
+        : '';
 
     const parsed = splitFileName(fileNameWithExt);
     if (!parsed) return false;
@@ -441,24 +366,30 @@ export class FolderNoteManager extends BaseManager {
     return (
       parentFolderName !== '' &&
       parsed.baseName === parentFolderName &&
-      SUPPORTED_EXTENSIONS.includes(parsed.ext)
+      (SUPPORTED_EXTENSIONS as readonly string[]).includes(
+        parsed.ext.toLowerCase(),
+      )
     );
   }
 
   getFolderNoteFile(folderPath: string): TFile | null {
     const normalized = this.normalizeFolderPath(folderPath);
-    const folder = this.plugin.app.vault.getFolderByPath(normalized || '/');
-    if (!folder) return null;
+    if (!normalized) return null;
 
-    const folderName = folder.name;
-    if (!normalized || folderName === '/') return null;
+    const lastSlash = normalized.lastIndexOf('/');
+    const folderName =
+      lastSlash >= 0 ? normalized.slice(lastSlash + 1) : normalized;
+    if (!folderName || folderName === '/') return null;
 
-    const prefix = normalized ? `${normalized}/` : '';
+    const prefix = `${normalized}/${folderName}.`;
     for (const ext of SUPPORTED_EXTENSIONS) {
-      const potentialPath = `${prefix}${folderName}.${ext}`;
-      const file = this.plugin.app.vault.getFileByPath(potentialPath);
-      if (file) return file;
+      const potentialPath = prefix + ext;
+      if (this.folderNotePaths.has(potentialPath)) {
+        const file = this.plugin.app.vault.getFileByPath(potentialPath);
+        if (file) return file;
+      }
     }
+
     return null;
   }
 
@@ -476,9 +407,13 @@ export class FolderNoteManager extends BaseManager {
       'base';
     const notePath = `${normalized}/${folderName}.${defaultExt}`;
 
-    const newFile = await this.plugin.app.vault.create(notePath, '');
-    await this.openFolderNote(newFile, false);
-    this.triggerStyleRefresh();
+    try {
+      const newFile = await this.plugin.app.vault.create(notePath, '');
+      await this.openFolderNote(newFile, false);
+      this.triggerStyleRefresh();
+    } catch (err) {
+      new Notice(`폴더 노트 생성 실패: ${(err as Error).message}`);
+    }
   }
 
   async deleteFolderNote(noteFile: TFile) {
@@ -506,17 +441,19 @@ export class FolderNoteManager extends BaseManager {
       },
     );
 
-    addDropdownSetting(detailEl, {
-      name: '기본 확장자',
-      desc: '폴더 노트 생성 시 사용할 기본 확장자를 선택합니다.',
-      initialValue: this.plugin.settings.folderNoteExtension,
-      options: Object.fromEntries(
-        SUPPORTED_EXTENSIONS.map((ext) => [ext, `.${ext}`]),
-      ),
-      onChange: async (value) => {
-        this.plugin.settings.folderNoteExtension = value;
-        await this.plugin.saveSettings();
-      },
-    });
+    new Setting(detailEl)
+      .setName('기본 확장자')
+      .setDesc('폴더 노트 생성 시 사용할 기본 확장자를 선택합니다.')
+      .addDropdown((dropdown) => {
+        const options = Object.fromEntries(
+          SUPPORTED_EXTENSIONS.map((ext) => [ext, `.${ext}`]),
+        );
+        dropdown.addOptions(options);
+        dropdown.setValue(this.plugin.settings.folderNoteExtension);
+        dropdown.onChange(async (value) => {
+          this.plugin.settings.folderNoteExtension = value;
+          await this.plugin.saveSettings();
+        });
+      });
   }
 }

@@ -8,15 +8,20 @@ export async function limitConcurrency<T, R>(
 ): Promise<R[]> {
   if (items.length === 0) return [];
   const results: R[] = new Array<R>(items.length);
-  const iterator = items.entries();
+  let nextIndex = 0;
 
-  const workers = Array(Math.min(limit, items.length))
-    .fill(null)
-    .map(async () => {
-      for (const [index, item] of iterator) {
+  const workerCount = Math.min(limit, items.length);
+  const workers = new Array(workerCount);
+
+  for (let i = 0; i < workerCount; i++) {
+    workers[i] = (async () => {
+      while (nextIndex < items.length) {
+        const index = nextIndex++;
+        const item = items[index]!;
         results[index] = await fn(item);
       }
-    });
+    })();
+  }
 
   await Promise.all(workers);
   return results;

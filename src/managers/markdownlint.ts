@@ -7,7 +7,12 @@ import {
   DEFAULT_MARKDOWNLINT_RULES,
   type MarkdownlintRuleMetadata,
 } from '../constants/markdownlint-rules';
-import { createToggleSection, addValidatedTextSetting } from '../utils/ui';
+import {
+  createToggleSection,
+  addErrorContainer,
+  showError,
+  clearError,
+} from '../utils/ui';
 import { MarkdownlintResultModal } from '../ui/markdownlint-result-modal';
 import { FolderSuggest } from '../ui/folder-suggest';
 import { isValidPath } from '../utils/file';
@@ -54,7 +59,6 @@ export class MarkdownlintManager extends BaseManager {
       },
     });
 
-    // Explicit user save trigger (Ctrl+S / Cmd+S)
     this.plugin.registerDomEvent(
       window,
       'keydown',
@@ -87,9 +91,7 @@ export class MarkdownlintManager extends BaseManager {
 
     for (const [ruleId, val] of Object.entries(userRules)) {
       if (val && typeof val === 'object' && !Array.isArray(val)) {
-        const ruleObj: Record<string, unknown> = {
-          ...val,
-        };
+        const ruleObj: Record<string, unknown> = { ...val };
         const ruleMeta = MARKDOWNLINT_ALL_RULES.find((r) => r.id === ruleId);
         if (ruleMeta?.subOptions) {
           for (const sub of ruleMeta.subOptions) {
@@ -118,11 +120,14 @@ export class MarkdownlintManager extends BaseManager {
     if (ignoredFolders.length === 0) return false;
 
     const filePath = file.path;
-    return ignoredFolders.some((folder) => {
+    for (const folder of ignoredFolders) {
       const trimmed = folder.trim().replace(/^\/+|\/+$/g, '');
-      if (!trimmed) return false;
-      return filePath === trimmed || filePath.startsWith(trimmed + '/');
-    });
+      if (!trimmed) continue;
+      if (filePath === trimmed || filePath.startsWith(trimmed + '/')) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private lintActiveNote(): void {
@@ -253,33 +258,40 @@ export class MarkdownlintManager extends BaseManager {
           }),
       );
 
-    addValidatedTextSetting(detailEl, {
-      name: '제외할 폴더',
-      desc: '검사 및 자동 수정을 제외할 폴더 경로를 쉼표(,)로 구분하여 입력합니다.',
-      initialValue: (
-        this.plugin.settings.markdownlintIgnoredFolders || []
-      ).join(', '),
-      onSetupText: (text) => new FolderSuggest(this.plugin.app, text.inputEl),
-      validate: (val) => {
-        const paths = val
-          .split(',')
-          .map((p) => p.trim())
-          .filter(Boolean);
-        for (const p of paths) {
-          if (!isValidPath(p)) {
-            return `경로 '${p}'에 사용할 수 없는 문자가 포함되어 있습니다.`;
+    const ignoredSetting = new Setting(detailEl)
+      .setName('제외할 폴더')
+      .setDesc(
+        '검사 및 자동 수정을 제외할 폴더 경로를 쉼표(,)로 구분하여 입력합니다.',
+      );
+
+    const errorEl = addErrorContainer(ignoredSetting);
+
+    ignoredSetting.addText((text) => {
+      text.setValue(
+        (this.plugin.settings.markdownlintIgnoredFolders || []).join(', '),
+      );
+      new FolderSuggest(this.plugin.app, text.inputEl);
+
+      text.onChange((val) => {
+        void (async () => {
+          const paths = val
+            .split(',')
+            .map((p) => p.trim())
+            .filter(Boolean);
+          for (const p of paths) {
+            if (!isValidPath(p)) {
+              showError(
+                errorEl,
+                `경로 '${p}'에 사용할 수 없는 문자가 포함되어 있습니다.`,
+              );
+              return;
+            }
           }
-        }
-        return null;
-      },
-      onChange: async (val) => {
-        const paths = val
-          .split(',')
-          .map((p) => p.trim())
-          .filter(Boolean);
-        this.plugin.settings.markdownlintIgnoredFolders = paths;
-        await this.plugin.saveSettings();
-      },
+          clearError(errorEl);
+          this.plugin.settings.markdownlintIgnoredFolders = paths;
+          await this.plugin.saveSettings();
+        })();
+      });
     });
 
     new Setting(detailEl)
@@ -301,45 +313,25 @@ export class MarkdownlintManager extends BaseManager {
           }),
       );
 
-    // Group rules in 10-item chunks (MD001~MD010, MD011~MD020, ...)
-    const groups: { title: string; rules: MarkdownlintRuleMetadata[] }[] = [];
-    for (let i = 0; i < MARKDOWNLINT_ALL_RULES.length; i += 10) {
-      const chunk = MARKDOWNLINT_ALL_RULES.slice(i, i + 10);
-      const startRule = chunk[0];
-      const endRule = chunk[chunk.length - 1];
-      if (startRule && endRule) {
-        groups.push({
-          title: `${startRule.id} ~ ${endRule.id} 규칙`,
-          rules: chunk,
-        });
-      }
-    }
-
-    const groupsContainer = detailEl.createDiv({
-      cls: 'tk-markdownlint-groups-container',
+    const rulesDetails = detailEl.createEl('details', {
+      cls: 'tk-markdownlint-group-details',
+    });
+    rulesDetails.createEl('summary', {
+      cls: 'tk-markdownlint-group-summary',
+      text: 'Markdownlint 상세 규칙 설정 목록',
     });
 
-    for (const group of groups) {
-      const details = groupsContainer.createEl('details', {
-        cls: 'tk-markdownlint-group-details',
-      });
-      details.createEl('summary', {
-        cls: 'tk-markdownlint-group-summary',
-        text: group.title,
-      });
+    const groupContent = rulesDetails.createDiv({
+      cls: 'tk-markdownlint-group-content',
+    });
 
-      const groupContent = details.createDiv({
-        cls: 'tk-markdownlint-group-content',
-      });
-
-      let isRendered = false;
-      details.ontoggle = () => {
-        if (details.open && !isRendered) {
-          isRendered = true;
-          this.renderGroupRules(groupContent, group.rules);
-        }
-      };
-    }
+    let isRendered = false;
+    rulesDetails.ontoggle = () => {
+      if (rulesDetails.open && !isRendered) {
+        isRendered = true;
+        this.renderGroupRules(groupContent, MARKDOWNLINT_ALL_RULES);
+      }
+    };
   }
 
   private renderGroupRules(
@@ -437,7 +429,8 @@ export class MarkdownlintManager extends BaseManager {
         return raw;
       }
       const defObj: Record<string, unknown> = {};
-      for (const sub of rule.subOptions || []) {
+      const subs = rule.subOptions || [];
+      for (const sub of subs) {
         defObj[sub.key] = sub.default;
       }
       return defObj;
