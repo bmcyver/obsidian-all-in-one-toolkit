@@ -12,7 +12,9 @@ import {
   addErrorContainer,
   showError,
   clearError,
+  createFoldableSection,
 } from '../utils/ui';
+import { ConfirmModal } from '../ui/confirm-modal';
 import { MarkdownlintResultModal } from '../ui/markdownlint-result-modal';
 import { FolderSuggest } from '../ui/folder-suggest';
 import { isValidPath } from '../utils/file';
@@ -37,7 +39,7 @@ export class MarkdownlintManager extends BaseManager {
   onload() {
     this.plugin.addCommand({
       id: 'markdownlint-lint-current-note',
-      name: '현재 노트 Lint 검사',
+      name: '마크다운 서식 검사',
       checkCallback: (checking) => {
         if (!this.isEnabled()) return false;
         if (!checking) {
@@ -49,7 +51,7 @@ export class MarkdownlintManager extends BaseManager {
 
     this.plugin.addCommand({
       id: 'markdownlint-fix-current-note',
-      name: '현재 노트 Lint 자동 수정',
+      name: '마크다운 서식 교정',
       checkCallback: (checking) => {
         if (!this.isEnabled()) return false;
         if (!checking) {
@@ -294,36 +296,13 @@ export class MarkdownlintManager extends BaseManager {
       });
     });
 
-    new Setting(detailEl)
-      .setName('규칙 설정 초기화')
-      .setDesc('모든 Markdownlint 규칙 및 세부 옵션을 기본값으로 초기화합니다.')
-      .addButton((btn) =>
-        btn
-          .setButtonText('초기화')
-          .setDestructive()
-          .setCta()
-          .onClick(async () => {
-            this.plugin.settings.markdownlintRules = JSON.parse(
-              JSON.stringify(DEFAULT_MARKDOWNLINT_RULES),
-            ) as Record<string, boolean | Record<string, unknown>>;
-            this.invalidateCache();
-            await this.plugin.saveSettings();
-            this.renderSettings(containerEl);
-            new Notice('규칙 설정이 기본값으로 초기화되었습니다.');
-          }),
+    const totalRules = MARKDOWNLINT_ALL_RULES.length;
+    const { detailsEl: rulesDetails, contentEl: groupContent } =
+      createFoldableSection(
+        detailEl,
+        'Markdownlint 상세 규칙 설정 목록',
+        `${totalRules}개 규칙`,
       );
-
-    const rulesDetails = detailEl.createEl('details', {
-      cls: 'tk-markdownlint-group-details',
-    });
-    rulesDetails.createEl('summary', {
-      cls: 'tk-markdownlint-group-summary',
-      text: 'Markdownlint 상세 규칙 설정 목록',
-    });
-
-    const groupContent = rulesDetails.createDiv({
-      cls: 'tk-markdownlint-group-content',
-    });
 
     let isRendered = false;
     rulesDetails.ontoggle = () => {
@@ -332,6 +311,34 @@ export class MarkdownlintManager extends BaseManager {
         this.renderGroupRules(groupContent, MARKDOWNLINT_ALL_RULES);
       }
     };
+
+    new Setting(detailEl)
+      .setName('규칙 설정 초기화')
+      .setDesc('모든 Markdownlint 규칙 및 세부 옵션을 기본값으로 초기화합니다.')
+      .addButton((btn) =>
+        btn
+          .setButtonText('초기화')
+          .setDestructive()
+          .onClick(() => {
+            new ConfirmModal(
+              this.plugin.app,
+              '규칙 설정 초기화',
+              '모든 Markdownlint 규칙 및 세부 옵션을 기본값으로 초기화하시겠습니까?',
+              '초기화',
+              () => {
+                void (async () => {
+                  this.plugin.settings.markdownlintRules = JSON.parse(
+                    JSON.stringify(DEFAULT_MARKDOWNLINT_RULES),
+                  ) as Record<string, boolean | Record<string, unknown>>;
+                  this.invalidateCache();
+                  await this.plugin.saveSettings();
+                  this.renderSettings(containerEl);
+                  new Notice('규칙 설정이 기본값으로 초기화되었습니다.');
+                })();
+              },
+            ).open();
+          }),
+      );
   }
 
   private renderGroupRules(

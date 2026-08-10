@@ -54,3 +54,44 @@ export function createToggleSection(
 
   return detailEl;
 }
+
+/**
+ * Creates a foldable details section with summary and content container.
+ */
+export function createFoldableSection(
+  containerEl: HTMLElement,
+  title: string,
+  badgeText?: string,
+): {
+  detailsEl: HTMLDetailsElement;
+  summaryEl: HTMLElement;
+  badgeEl: HTMLElement | null;
+  contentEl: HTMLElement;
+} {
+  const detailsEl = containerEl.createEl('details', {
+    cls: 'tk-fold-details',
+  });
+
+  const summaryEl = detailsEl.createEl('summary', {
+    cls: 'tk-fold-summary',
+  });
+
+  summaryEl.createSpan({
+    cls: 'tk-fold-title',
+    text: title,
+  });
+
+  let badgeEl: HTMLElement | null = null;
+  if (badgeText) {
+    badgeEl = summaryEl.createSpan({
+      cls: 'tk-fold-badge',
+      text: badgeText,
+    });
+  }
+
+  const contentEl = detailsEl.createDiv({
+    cls: 'tk-fold-content',
+  });
+
+  return { detailsEl, summaryEl, badgeEl, contentEl };
+}

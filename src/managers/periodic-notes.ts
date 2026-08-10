@@ -86,7 +86,6 @@ export class PeriodicNotesManager extends BaseManager {
         file = await this.plugin.app.vault.create(fullPath, '');
       } catch (err) {
         new Notice(`노트 생성 실패: ${(err as Error).message}`);
-        console.error(`Failed to create periodic note at ${fullPath}`, err);
       }
     }
 

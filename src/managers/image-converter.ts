@@ -41,6 +41,43 @@ export class ImageConverterManager extends BaseManager {
   }
 
   onload() {
+    this.plugin.addCommand({
+      id: 'image-converter-convert-current-note-images',
+      name: '현재 노트 내 이미지 WebP 변환',
+      checkCallback: (checking) => {
+        if (!this.isEnabled()) return false;
+        const activeFile = this.plugin.app.workspace.getActiveFile();
+        if (!activeFile || activeFile.extension.toLowerCase() !== 'md') {
+          return false;
+        }
+        if (!checking) {
+          void this.handleMarkdownMenuEvent(activeFile);
+        }
+        return true;
+      },
+    });
+
+    this.plugin.addCommand({
+      id: 'image-converter-convert-current-image',
+      name: '현재 이미지 WebP 변환',
+      checkCallback: (checking) => {
+        if (!this.isEnabled()) return false;
+        const activeFile = this.plugin.app.workspace.getActiveFile();
+        if (
+          !activeFile ||
+          !SUPPORTED_IMAGE_EXTENSIONS.includes(
+            activeFile.extension.toLowerCase(),
+          )
+        ) {
+          return false;
+        }
+        if (!checking) {
+          void this.handleFileMenuEvent(activeFile);
+        }
+        return true;
+      },
+    });
+
     this.registerEventRef(
       this.plugin.app.workspace.on('file-menu', (menu, targetFile) => {
         if (!this.isEnabled()) return;

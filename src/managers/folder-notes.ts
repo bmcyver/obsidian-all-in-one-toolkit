@@ -10,6 +10,7 @@ import type { WorkspaceWindow } from 'obsidian';
 import { splitFileName } from '../utils/file';
 import { BaseManager } from './base';
 import { createToggleSection } from '../utils/ui';
+import { EjsPromptModal } from '../ui/prompt-modal';
 
 export const SUPPORTED_EXTENSIONS = ['base', 'md', 'canvas'] as const;
 const NAV_FILES_CONTAINER = '.nav-files-container';
@@ -36,6 +37,42 @@ export class FolderNoteManager extends BaseManager {
 
   onload() {
     this.bindObservers();
+
+    this.plugin.addCommand({
+      id: 'folder-note-rename',
+      name: '폴더 노트 이름 변경',
+      checkCallback: (checking) => {
+        if (!this.isEnabled()) return false;
+        const activeFile = this.plugin.app.workspace.getActiveFile();
+        if (!activeFile) return false;
+
+        let folder: TFolder | null = null;
+        let noteFile: TFile | null = null;
+
+        if (this.isFolderNotePath(activeFile.path)) {
+          noteFile = activeFile;
+          if (activeFile.parent instanceof TFolder) {
+            folder = activeFile.parent;
+          }
+        } else {
+          const parentFolder = activeFile.parent;
+          if (parentFolder instanceof TFolder) {
+            const foundNote = this.getFolderNoteFile(parentFolder.path);
+            if (foundNote) {
+              folder = parentFolder;
+              noteFile = foundNote;
+            }
+          }
+        }
+
+        if (!folder || !noteFile) return false;
+
+        if (!checking) {
+          void this.promptRenameFolderNote(folder, noteFile);
+        }
+        return true;
+      },
+    });
 
     this.registerEventRef(
       this.plugin.app.workspace.on('layout-change', () => {
@@ -77,7 +114,35 @@ export class FolderNoteManager extends BaseManager {
     this.registerEventRef(
       this.plugin.app.vault.on('rename', (file, oldPath) => {
         if (!this.isEnabled()) return;
-        if (file instanceof TFile) {
+        if (file instanceof TFolder) {
+          const oldNormalized = this.normalizeFolderPath(oldPath);
+          const lastSlash = oldNormalized.lastIndexOf('/');
+          const oldFolderName =
+            lastSlash >= 0 ? oldNormalized.slice(lastSlash + 1) : oldNormalized;
+          const newFolderName = file.name;
+
+          if (
+            oldFolderName &&
+            newFolderName &&
+            oldFolderName !== newFolderName
+          ) {
+            for (const ext of SUPPORTED_EXTENSIONS) {
+              const expectedOldNotePath = `${file.path}/${oldFolderName}.${ext}`;
+              const noteFile =
+                this.plugin.app.vault.getFileByPath(expectedOldNotePath);
+              if (noteFile) {
+                const targetNotePath = `${file.path}/${newFolderName}.${ext}`;
+                void this.plugin.app.fileManager.renameFile(
+                  noteFile,
+                  targetNotePath,
+                );
+                break;
+              }
+            }
+          }
+          this.rebuildFolderNotePathsCache();
+          this.triggerStyleRefresh();
+        } else if (file instanceof TFile) {
           let changed = false;
           if (this.isFolderNotePath(oldPath)) {
             this.folderNotePaths.delete(oldPath);
@@ -110,6 +175,14 @@ export class FolderNoteManager extends BaseManager {
               });
           });
         } else {
+          menu.addItem((item) => {
+            item
+              .setTitle('폴더 노트 이름 변경')
+              .setIcon('pencil')
+              .onClick(() => {
+                void this.promptRenameFolderNote(folder, noteFile);
+              });
+          });
           menu.addItem((item) => {
             item
               .setTitle('폴더 노트 삭제')
@@ -298,7 +371,7 @@ export class FolderNoteManager extends BaseManager {
         const path = titleEl.getAttribute('data-path');
         if (!path) continue;
 
-        const isNote = this.isFolderNotePath(path);
+        const isNote = this.folderNotePaths.has(path);
         const hasClass = el.classList.contains('fn-hidden-file');
 
         if (isNote && !hasClass) {
@@ -422,6 +495,59 @@ export class FolderNoteManager extends BaseManager {
       this.triggerStyleRefresh();
     } catch (err) {
       new Notice(`폴더 노트 삭제 실패: ${(err as Error).message}`);
+    }
+  }
+
+  async promptRenameFolderNote(folder: TFolder, noteFile: TFile) {
+    new EjsPromptModal(
+      this.plugin.app,
+      '폴더 및 노트 이름 변경',
+      folder.name,
+      (newName) => {
+        if (
+          !newName ||
+          newName.trim() === '' ||
+          newName.trim() === folder.name
+        ) {
+          return;
+        }
+        void this.renameFolderNote(folder, noteFile, newName.trim());
+      },
+    ).open();
+  }
+
+  async renameFolderNote(folder: TFolder, noteFile: TFile, newName: string) {
+    const parentPath = folder.parent ? folder.parent.path : '';
+    const normalizedParent = this.normalizeFolderPath(parentPath);
+    const newFolderPath = normalizedParent
+      ? `${normalizedParent}/${newName}`
+      : newName;
+
+    if (this.plugin.app.vault.getFolderByPath(newFolderPath)) {
+      new Notice(`'${newName}' 폴더가 이미 존재합니다.`);
+      return;
+    }
+
+    try {
+      const ext = noteFile.extension;
+      await this.plugin.app.fileManager.renameFile(folder, newFolderPath);
+
+      const movedNotePath = `${newFolderPath}/${folder.name}.${ext}`;
+      const movedNoteFile = this.plugin.app.vault.getFileByPath(movedNotePath);
+
+      const targetNotePath = `${newFolderPath}/${newName}.${ext}`;
+      if (movedNoteFile) {
+        await this.plugin.app.fileManager.renameFile(
+          movedNoteFile,
+          targetNotePath,
+        );
+      }
+
+      this.rebuildFolderNotePathsCache();
+      this.triggerStyleRefresh();
+      new Notice(`폴더 및 노트 이름이 '${newName}'(으)로 변경되었습니다.`);
+    } catch (err) {
+      new Notice(`폴더 노트 이름 변경 실패: ${(err as Error).message}`);
     }
   }
 
