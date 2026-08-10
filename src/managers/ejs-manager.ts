@@ -23,7 +23,9 @@ import {
   clearError,
   createToggleSection,
   addErrorContainer,
+  createFoldableSection,
 } from '../utils/ui';
+import { ConfirmModal } from '../ui/confirm-modal';
 import { calculateSHA256 } from '../utils/crypto';
 
 const EJS_ALLOWED_HASHES_KEY = 'ejs-allowed-hashes';
@@ -100,8 +102,8 @@ export class EjsManager extends BaseManager {
           regex: new RegExp(rule.pattern),
           templatePath: rule.templatePath,
         });
-      } catch (err) {
-        console.error(`패턴 정규식 오류 "${rule.pattern}":`, err);
+      } catch {
+        new Notice(`EJS 규칙 정규식 패턴 오류: ${rule.pattern}`);
       }
     }
 
@@ -196,14 +198,12 @@ export class EjsManager extends BaseManager {
 
       try {
         await this.plugin.app.vault.modify(file, rendered);
-      } catch (modifyErr) {
-        console.warn('vault.modify failed, trying adapter.write:', modifyErr);
+      } catch {
         await this.plugin.app.vault.adapter.write(file.path, rendered);
       }
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : String(err);
       new Notice(`EJS 렌더링 실패: ${errMsg}`);
-      console.error('EJS 렌더링 중 오류 발생:', err);
     }
   }
 
@@ -282,7 +282,8 @@ export class EjsManager extends BaseManager {
       }
       return false;
     } catch (err) {
-      console.error('보안 승인 처리 중 오류가 발생했습니다:', err);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      new Notice(`EJS 보안 승인 처리 실패: ${errMsg}`);
       return false;
     } finally {
       releaseLock();
@@ -604,6 +605,8 @@ export class EjsManager extends BaseManager {
 
     const errorEl = addErrorContainer(folderSetting);
 
+    let rulesContentEl: HTMLElement | null = null;
+
     folderSetting.addText((text) => {
       text.setValue(this.plugin.settings.ejsTemplatesFolder || '');
       new FolderSuggest(this.plugin.app, text.inputEl);
@@ -621,25 +624,29 @@ export class EjsManager extends BaseManager {
           clearError(errorEl);
           this.plugin.settings.ejsTemplatesFolder = trimmed;
           await this.plugin.saveSettings();
-          this.renderRules(rulesContainer);
+          if (rulesContentEl) {
+            this.renderRules(rulesContentEl);
+          }
         })();
       });
     });
 
-    const rulesContainer = detailEl.createDiv('ejs-rules-container');
-    rulesContainer.addClass('ejs-rules-wrapper');
+    const rulesCount = this.plugin.settings.ejsRules.length;
+    const { detailsEl: rulesDetails, contentEl: groupContent } =
+      createFoldableSection(
+        detailEl,
+        'EJS 템플릿 규칙 목록',
+        `${rulesCount}개 규칙`,
+      );
+    rulesContentEl = groupContent;
 
-    const headerSetting = new Setting(rulesContainer)
-      .setName('EJS 템플릿 규칙')
-      .setHeading();
-    headerSetting.settingEl.addClass('ejs-rules-header');
-
-    rulesContainer.createEl('p', {
-      text: '생성되는 파일 경로와 일치하는 EJS 템플릿을 자동으로 적용합니다. 위쪽에 위치한 규칙이 우선 적용됩니다.',
-      cls: 'setting-item-description',
-    });
-
-    this.renderRules(rulesContainer);
+    let isRendered = false;
+    rulesDetails.ontoggle = () => {
+      if (rulesDetails.open && !isRendered) {
+        isRendered = true;
+        this.renderRules(groupContent);
+      }
+    };
 
     new Setting(detailEl)
       .setName('템플릿 승인 목록 초기화')
@@ -648,11 +655,20 @@ export class EjsManager extends BaseManager {
         btn
           .setButtonText('목록 초기화')
           .setDestructive()
-          .setCta()
           .onClick(() => {
-            this.clearAllowedHashes();
-            new Notice('EJS 템플릿 승인 목록이 초기화되었습니다.');
-            this.renderRules(rulesContainer);
+            new ConfirmModal(
+              this.plugin.app,
+              '템플릿 승인 목록 초기화',
+              '승인된 EJS 템플릿 해시 목록을 초기화하시겠습니까?',
+              '목록 초기화',
+              () => {
+                this.clearAllowedHashes();
+                new Notice('EJS 템플릿 승인 목록이 초기화되었습니다.');
+                if (rulesContentEl && isRendered) {
+                  this.renderRules(rulesContentEl);
+                }
+              },
+            ).open();
           });
       });
   }

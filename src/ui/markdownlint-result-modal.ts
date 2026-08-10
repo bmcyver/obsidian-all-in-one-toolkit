@@ -32,7 +32,7 @@ export class MarkdownlintResultModal extends Modal {
     contentEl.empty();
     this.modalEl.addClass('tk-markdownlint-result-modal');
 
-    this.setTitle('Markdown Lint 검사 결과');
+    this.setTitle('마크다운 서식 검사 결과');
 
     let fixableCount = 0;
     for (let i = 0; i < this.issues.length; i++) {
