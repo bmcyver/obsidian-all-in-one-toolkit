@@ -5,6 +5,7 @@ import { BaseManager } from './base';
 import {
   MARKDOWNLINT_ALL_RULES,
   DEFAULT_MARKDOWNLINT_RULES,
+  getRuleDocUrl,
   type MarkdownlintRuleMetadata,
 } from '../constants/markdownlint-rules';
 import {
@@ -372,7 +373,7 @@ export class MarkdownlintManager extends BaseManager {
     setting.nameEl.empty();
     const linkEl = setting.nameEl.createEl('a', {
       cls: 'tk-markdownlint-rule-link',
-      href: rule.docUrl,
+      href: getRuleDocUrl(rule.id),
     });
     linkEl.target = '_blank';
     linkEl.rel = 'noopener noreferrer';

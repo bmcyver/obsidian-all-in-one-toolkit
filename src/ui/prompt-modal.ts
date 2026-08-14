@@ -1,80 +1,118 @@
-import { App, Modal, Setting, ButtonComponent } from 'obsidian';
+import {
+  App,
+  ButtonComponent,
+  Modal,
+  Platform,
+  TextAreaComponent,
+  TextComponent,
+} from 'obsidian';
 
-export class EjsPromptModal extends Modal {
-  private message: string;
-  private defaultValue: string;
-  private onSubmit: (value: string) => void;
+export class PromptModal extends Modal {
+  private resolve: (value: string) => void;
   private submitted = false;
-  private value = '';
+  private value: string;
+  private promptText: string;
+  private defaultValue: string;
+  private multiLine: boolean;
+  private selectDefaultValue: boolean;
 
   constructor(
     app: App,
-    message: string,
-    defaultValue: string,
-    onSubmit: (value: string) => void,
+    promptText: string,
+    defaultValue = '',
+    resolve: (value: string) => void = () => {},
+    multiLine = false,
+    selectDefaultValue = true,
   ) {
     super(app);
-    this.message = message;
-    this.defaultValue = defaultValue;
-    this.value = defaultValue;
-    this.onSubmit = onSubmit;
+    this.promptText = promptText;
+    this.defaultValue = defaultValue ?? '';
+    this.value = this.defaultValue;
+    this.resolve = resolve;
+    this.multiLine = multiLine;
+    this.selectDefaultValue = selectDefaultValue;
   }
 
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.empty();
+  onOpen(): void {
+    this.titleEl.setText(this.promptText);
+    this.createForm();
+  }
 
-    this.setTitle(this.message);
+  onClose(): void {
+    this.contentEl.empty();
+    if (!this.submitted) {
+      this.resolve(this.defaultValue);
+    }
+  }
 
-    new Setting(contentEl).addText((text) => {
-      text.setValue(this.defaultValue);
+  private createForm(): void {
+    const div = this.contentEl.createDiv({ cls: 'tk-prompt-container' });
+    let textInput: TextAreaComponent | TextComponent;
+    if (this.multiLine) {
+      textInput = new TextAreaComponent(div);
+    } else {
+      textInput = new TextComponent(div);
+    }
 
-      // Auto focus the input field
-      window.setTimeout(() => {
-        text.inputEl.focus();
-        text.inputEl.select();
-      }, 50);
-
-      text.onChange((val) => {
-        this.value = val;
-      });
-
-      // Submit on Enter key
-      text.inputEl.addEventListener('keydown', (evt) => {
-        if (evt.key === 'Enter') {
-          evt.preventDefault();
-          this.submit();
-        }
-      });
-    });
-
-    const buttonContainer = contentEl.createDiv({
+    const buttonDiv = this.contentEl.createDiv({
       cls: 'modal-button-container',
     });
 
-    new ButtonComponent(buttonContainer).setButtonText('취소').onClick(() => {
+    const cancelButton = new ButtonComponent(buttonDiv);
+    cancelButton.setButtonText('취소').onClick(() => {
       this.close();
     });
 
-    new ButtonComponent(buttonContainer)
-      .setButtonText('확인')
-      .setCta()
-      .onClick(() => {
-        this.submit();
-      });
+    const submitButton = new ButtonComponent(buttonDiv);
+    submitButton.setCta();
+    submitButton.setButtonText('확인').onClick((evt: Event) => {
+      this.resolveAndClose(evt);
+    });
+
+    this.value = this.defaultValue ?? '';
+    textInput.inputEl.addClass('tk-prompt-input');
+    textInput.setValue(this.value);
+    textInput.onChange((value) => (this.value = value));
+    textInput.inputEl.focus();
+    if (this.selectDefaultValue) {
+      textInput.inputEl.select();
+    }
+    textInput.inputEl.addEventListener('keydown', (evt: Event) => {
+      if (evt instanceof KeyboardEvent) {
+        this.enterCallback(evt);
+      }
+    });
   }
 
-  private submit() {
+  private enterCallback(evt: KeyboardEvent) {
+    if (evt.isComposing) return;
+
+    if (this.multiLine) {
+      if (Platform.isDesktop && evt.key === 'Enter' && !evt.shiftKey) {
+        this.resolveAndClose(evt);
+      }
+    } else {
+      if (evt.key === 'Enter') {
+        this.resolveAndClose(evt);
+      }
+    }
+  }
+
+  private resolveAndClose(evt: Event | KeyboardEvent) {
     this.submitted = true;
-    this.onSubmit(this.value);
+    evt.preventDefault();
+    this.resolve(this.value);
     this.close();
   }
 
-  onClose() {
-    const { contentEl } = this;
-    contentEl.empty();
-    if (!this.submitted) {
-      this.onSubmit(this.defaultValue);
-    }
+  async openAndGetValue(resolve: (value: string) => void): Promise<void> {
+    this.resolve = resolve;
+    this.open();
   }
 }
+
+/**
+ * Backward compatibility alias for EjsPromptModal
+ */
+export const EjsPromptModal = PromptModal;
+export type EjsPromptModal = PromptModal;

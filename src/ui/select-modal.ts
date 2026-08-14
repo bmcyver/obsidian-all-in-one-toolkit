@@ -1,49 +1,52 @@
-import { App, SuggestModal } from 'obsidian';
+import { App, FuzzySuggestModal, type FuzzyMatch } from 'obsidian';
 
-export class EjsSelectModal extends SuggestModal<string> {
-  private placeholderText: string;
-  private items: string[];
-  private values: string[];
-  private onSelect: (value: string) => void;
+export class EjsSelectModal extends FuzzySuggestModal<string> {
+  private resolve: (value: string) => void;
   private submitted = false;
+  private textItems: string[];
+  private items: string[];
 
   constructor(
     app: App,
     placeholderText: string,
-    items: string[],
+    textItems: string[],
     values: string[],
-    onSelect: (value: string) => void,
+    resolve: (value: string) => void,
   ) {
     super(app);
-    this.placeholderText = placeholderText;
-    this.items = items;
-    this.values = values;
-    this.onSelect = onSelect;
-    this.setPlaceholder(this.placeholderText);
+    this.textItems = textItems;
+    this.items =
+      values && values.length === textItems.length ? values : textItems;
+    this.resolve = resolve;
+    this.setPlaceholder(placeholderText);
+    this.emptyStateText = '일치하는 항목이 없습니다.';
   }
 
-  getSuggestions(query: string): string[] {
-    return this.items.filter((item) =>
-      item.toLowerCase().includes(query.toLowerCase()),
-    );
+  getItems(): string[] {
+    return this.items;
   }
 
-  renderSuggestion(value: string, el: HTMLElement) {
-    el.setText(value);
-  }
-
-  onChooseSuggestion(item: string, evt: MouseEvent | KeyboardEvent) {
-    this.submitted = true;
+  getItemText(item: string): string {
     const idx = this.items.indexOf(item);
-    const selectedValue = this.values[idx] ?? item;
-    this.onSelect(selectedValue);
+    return this.textItems[idx] || item;
   }
 
-  onClose() {
-    super.onClose();
+  selectSuggestion(
+    value: FuzzyMatch<string>,
+    evt: MouseEvent | KeyboardEvent,
+  ): void {
+    this.submitted = true;
+    this.close();
+    this.onChooseSuggestion(value, evt);
+  }
+
+  onChooseItem(item: string): void {
+    this.resolve(item);
+  }
+
+  onClose(): void {
     if (!this.submitted) {
-      // If closed without selection, resolve with an empty string
-      this.onSelect('');
+      this.resolve('');
     }
   }
 }

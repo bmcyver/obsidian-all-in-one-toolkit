@@ -182,6 +182,7 @@ export class EjsManager extends BaseManager {
       const isAllowed = await this.checkAndPromptSecurity(
         templatePath,
         calculatedHash,
+        templateContent,
       );
       if (!isAllowed) {
         new Notice(
@@ -243,16 +244,22 @@ export class EjsManager extends BaseManager {
 
   private promptSecurityApproval(
     templatePath: string,
-    hash: string,
+    templateContent: string,
   ): Promise<boolean> {
     return new Promise((resolve) => {
-      new EjsSecurityModal(this.plugin.app, templatePath, hash, resolve).open();
+      new EjsSecurityModal(
+        this.plugin.app,
+        templatePath,
+        templateContent,
+        resolve,
+      ).open();
     });
   }
 
   private async checkAndPromptSecurity(
     templatePath: string,
     calculatedHash: string,
+    templateContent: string,
   ): Promise<boolean> {
     let releaseLock = () => {};
     const currentLock = this.securityLock;
@@ -270,7 +277,7 @@ export class EjsManager extends BaseManager {
 
       const approved = await this.promptSecurityApproval(
         templatePath,
-        calculatedHash,
+        templateContent,
       );
 
       if (approved) {
@@ -403,7 +410,7 @@ export class EjsManager extends BaseManager {
 
         showError(
           errorMsgEl,
-          '보안 승인이 필요합니다. 우측 아이콘을 눌러 승인하세요.',
+          '보안 승인이 필요합니다.',
         );
 
         new ExtraButtonComponent(statusAreaEl)

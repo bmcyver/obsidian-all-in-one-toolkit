@@ -1,7 +1,6 @@
 import { Plugin } from 'obsidian';
-import { AllInOneToolkitSettingTab } from './settings';
+import { AllInOneToolkitSettingTab, DEFAULT_SETTINGS } from './settings';
 import type { ToolkitSettings } from './settings';
-import { migrateSettings } from './utils/settings-migrator';
 import { BaseManager } from './managers/base';
 import { PeriodicNotesManager } from './managers/periodic-notes';
 import { FolderNoteManager } from './managers/folder-notes';
@@ -52,8 +51,18 @@ export default class AllInOneToolkitPlugin extends Plugin {
   }
 
   async loadSettings() {
-    const data: unknown = await this.loadData();
-    this.settings = migrateSettings(data);
+    const loadedData =
+      ((await this.loadData()) as Partial<ToolkitSettings> | null) || {};
+    const defaultSettings = structuredClone(DEFAULT_SETTINGS);
+
+    this.settings = {
+      ...defaultSettings,
+      ...loadedData,
+      markdownlintRules: {
+        ...defaultSettings.markdownlintRules,
+        ...(loadedData.markdownlintRules || {}),
+      },
+    };
   }
 
   async saveSettings() {

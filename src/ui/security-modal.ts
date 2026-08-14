@@ -2,19 +2,19 @@ import { App, Modal, ButtonComponent } from 'obsidian';
 
 export class EjsSecurityModal extends Modal {
   private templatePath: string;
-  private hash: string;
+  private templateContent: string;
   private onDecision: (allowed: boolean) => void;
   private decisionMade = false;
 
   constructor(
     app: App,
     templatePath: string,
-    hash: string,
+    templateContent: string,
     onDecision: (allowed: boolean) => void,
   ) {
     super(app);
     this.templatePath = templatePath;
-    this.hash = hash;
+    this.templateContent = templateContent;
     this.onDecision = onDecision;
   }
 
@@ -25,7 +25,7 @@ export class EjsSecurityModal extends Modal {
     this.setTitle('EJS 템플릿 실행 승인');
 
     contentEl.createEl('p', {
-      text: '템플릿이 처음 실행되거나 내용이 변경되었습니다. EJS 템플릿은 JavaScript 코드를 실행할 수 있으므로 신뢰할 수 있는 경우에만 허용하세요.',
+      text: '템플릿이 처음 실행되거나 내용이 변경되었습니다. 아래 템플릿 내용을 확인한 후 신뢰할 수 있는 경우에만 허용하세요.',
     });
 
     const infoTable = contentEl.createDiv('ejs-security-info');
@@ -34,9 +34,14 @@ export class EjsSecurityModal extends Modal {
     pathDiv.createEl('strong', { text: '템플릿 경로: ' });
     pathDiv.createSpan({ text: this.templatePath });
 
-    const hashDiv = infoTable.createDiv('ejs-security-info-hash');
-    hashDiv.createEl('strong', { text: 'SHA-256 해시: ' });
-    hashDiv.createEl('code', { text: this.hash });
+    const previewContainer = infoTable.createDiv({
+      cls: 'ejs-security-preview-container',
+    });
+    previewContainer.createEl('strong', { text: '템플릿 내용 미리보기:' });
+    const codeBlock = previewContainer.createEl('pre', {
+      cls: 'ejs-security-code-preview',
+    });
+    codeBlock.createEl('code', { text: this.templateContent });
 
     const buttonContainer = contentEl.createDiv({
       cls: 'modal-button-container',
@@ -50,7 +55,7 @@ export class EjsSecurityModal extends Modal {
 
     new ButtonComponent(buttonContainer)
       .setButtonText('허용 및 실행')
-      .setCta()
+      .setDestructive()
       .onClick(() => {
         this.decisionMade = true;
         this.onDecision(true);
@@ -61,8 +66,12 @@ export class EjsSecurityModal extends Modal {
   onClose() {
     const { contentEl } = this;
     contentEl.empty();
-    if (!this.decisionMade) {
+    if (!this.submitted()) {
       this.onDecision(false);
     }
+  }
+
+  private submitted(): boolean {
+    return this.decisionMade;
   }
 }

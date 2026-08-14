@@ -9,6 +9,7 @@ export type {
 export {
   MARKDOWNLINT_ALL_RULES,
   DEFAULT_MARKDOWNLINT_RULES,
+  getRuleDocUrl,
 } from './constants/markdownlint-rules';
 
 export interface EjsRule {
