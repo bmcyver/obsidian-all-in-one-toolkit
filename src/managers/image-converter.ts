@@ -78,7 +78,7 @@ export class ImageConverterManager extends BaseManager {
       },
     });
 
-    this.registerEventRef(
+    this.registerEvent(
       this.plugin.app.workspace.on('file-menu', (menu, targetFile) => {
         if (!this.isEnabled()) return;
         if (!(targetFile instanceof TFile)) return;
@@ -103,7 +103,7 @@ export class ImageConverterManager extends BaseManager {
     );
 
     // Paste handler
-    this.registerEventRef(
+    this.registerEvent(
       this.plugin.app.workspace.on(
         'editor-paste',
         (evt: ClipboardEvent, editor: Editor) => {
@@ -130,7 +130,7 @@ export class ImageConverterManager extends BaseManager {
     );
 
     // Drop handler
-    this.registerEventRef(
+    this.registerEvent(
       this.plugin.app.workspace.on(
         'editor-drop',
         (evt: DragEvent, editor: Editor) => {

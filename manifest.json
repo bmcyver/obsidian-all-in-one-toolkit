@@ -1,7 +1,7 @@
 {
   "id": "obsidian-all-in-one-toolkit-bmcyver",
   "name": "AIOT",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "minAppVersion": "1.13.0",
   "description": "All-in-one toolkit for Obsidian: Periodic note commands, WebP image converter, and folder notes.",
   "author": "bmcyver",

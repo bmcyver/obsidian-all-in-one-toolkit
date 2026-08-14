@@ -1,15 +1,16 @@
-import type { EventRef } from 'obsidian';
-import AllInOneToolkitPlugin from '../main';
+import { Component } from 'obsidian';
+import type AllInOneToolkitPlugin from '../main';
 
-export abstract class BaseManager {
-  private loaded = false;
-  protected eventRefs: EventRef[] = [];
+export abstract class BaseManager extends Component {
+  private isManagerEnabled = false;
 
-  constructor(public readonly plugin: AllInOneToolkitPlugin) {}
+  constructor(public readonly plugin: AllInOneToolkitPlugin) {
+    super();
+  }
 
-  abstract onload(): void;
+  abstract override onload(): void;
 
-  onunload(): void {
+  override onunload(): void {
     // Optional cleanup logic in subclasses
   }
 
@@ -21,40 +22,24 @@ export abstract class BaseManager {
     return true; // Default to always enabled
   }
 
-  protected registerEventRef(ref: EventRef): void {
-    this.eventRefs.push(ref);
-  }
-
-  protected detachEventRefs(): void {
-    for (let i = 0; i < this.eventRefs.length; i++) {
-      const ref = this.eventRefs[i];
-      if (ref) {
-        this.plugin.app.workspace.offref(ref);
-        this.plugin.app.vault.offref(ref);
-      }
-    }
-    this.eventRefs = [];
-  }
-
   enable(): void {
-    if (this.loaded) return;
+    if (this.isManagerEnabled) return;
     if (this.isEnabled()) {
-      this.onload();
-      this.loaded = true;
+      this.load();
+      this.isManagerEnabled = true;
     }
   }
 
   disable(): void {
-    if (!this.loaded) return;
-    this.detachEventRefs();
-    this.onunload();
-    this.loaded = false;
+    if (!this.isManagerEnabled) return;
+    this.unload();
+    this.isManagerEnabled = false;
   }
 
   onSettingsUpdate(): void {
-    if (this.isEnabled() && !this.loaded) {
+    if (this.isEnabled() && !this.isManagerEnabled) {
       this.enable();
-    } else if (!this.isEnabled() && this.loaded) {
+    } else if (!this.isEnabled() && this.isManagerEnabled) {
       this.disable();
     }
   }

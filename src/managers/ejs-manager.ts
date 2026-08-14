@@ -9,6 +9,7 @@ import {
   normalizePath,
   TextComponent,
   ExtraButtonComponent,
+  ConfirmationModal,
 } from 'obsidian';
 import ejs from '../ejs/ejs';
 import { EjsSecurityModal } from '../ui/security-modal';
@@ -25,7 +26,6 @@ import {
   addErrorContainer,
   createFoldableSection,
 } from '../utils/ui';
-import { ConfirmModal } from '../ui/confirm-modal';
 import { calculateSHA256 } from '../utils/crypto';
 
 const EJS_ALLOWED_HASHES_KEY = 'ejs-allowed-hashes';
@@ -76,7 +76,7 @@ export class EjsManager extends BaseManager {
 
   onload() {
     this.recompileRules();
-    this.registerEventRef(
+    this.registerEvent(
       this.plugin.app.vault.on('create', (file) => {
         if (!this.isEnabled()) return;
         void this.handleFileCreate(file);
@@ -663,19 +663,23 @@ export class EjsManager extends BaseManager {
           .setButtonText('목록 초기화')
           .setDestructive()
           .onClick(() => {
-            new ConfirmModal(
-              this.plugin.app,
-              '템플릿 승인 목록 초기화',
-              '승인된 EJS 템플릿 해시 목록을 초기화하시겠습니까?',
-              '목록 초기화',
-              () => {
-                this.clearAllowedHashes();
-                new Notice('EJS 템플릿 승인 목록이 초기화되었습니다.');
-                if (rulesContentEl && isRendered) {
-                  this.renderRules(rulesContentEl);
-                }
-              },
-            ).open();
+            new ConfirmationModal(this.plugin.app)
+              .setTitle('템플릿 승인 목록 초기화')
+              .setContent('승인된 EJS 템플릿 해시 목록을 초기화하시겠습니까?')
+              .addButton((b) =>
+                b
+                  .setButtonText('목록 초기화')
+                  .setDestructive()
+                  .onClick(() => {
+                    this.clearAllowedHashes();
+                    new Notice('EJS 템플릿 승인 목록이 초기화되었습니다.');
+                    if (rulesContentEl && isRendered) {
+                      this.renderRules(rulesContentEl);
+                    }
+                  }),
+              )
+              .addButton((b) => b.setButtonText('취소').onClick(() => {}))
+              .open();
           });
       });
   }

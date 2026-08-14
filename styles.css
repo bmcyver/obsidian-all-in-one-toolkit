@@ -154,6 +154,19 @@
   color: var(--text-muted);
 }
 
+.tk-trash-pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--size-4-2);
+  margin-top: var(--size-4-3);
+}
+
+.tk-trash-page-info {
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+}
+
 /* ==========================================================================
    3. EJS Manager & Modals Styles
    ========================================================================== */

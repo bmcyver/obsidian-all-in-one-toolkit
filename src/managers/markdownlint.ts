@@ -1,4 +1,10 @@
-import { Notice, Setting, MarkdownView, TFile } from 'obsidian';
+import {
+  Notice,
+  Setting,
+  MarkdownView,
+  TFile,
+  ConfirmationModal,
+} from 'obsidian';
 import { lint } from 'markdownlint/sync';
 import { applyFixes, type LintError } from 'markdownlint';
 import { BaseManager } from './base';
@@ -15,7 +21,6 @@ import {
   clearError,
   createFoldableSection,
 } from '../utils/ui';
-import { ConfirmModal } from '../ui/confirm-modal';
 import { MarkdownlintResultModal } from '../ui/markdownlint-result-modal';
 import { FolderSuggest } from '../ui/folder-suggest';
 import { isValidPath } from '../utils/file';
@@ -318,27 +323,33 @@ export class MarkdownlintManager extends BaseManager {
       .setDesc('모든 Markdownlint 규칙 및 세부 옵션을 기본값으로 초기화합니다.')
       .addButton((btn) =>
         btn
-          .setButtonText('초기화')
-          .setDestructive()
-          .onClick(() => {
-            new ConfirmModal(
-              this.plugin.app,
-              '규칙 설정 초기화',
-              '모든 Markdownlint 규칙 및 세부 옵션을 기본값으로 초기화하시겠습니까?',
-              '초기화',
-              () => {
-                void (async () => {
-                  this.plugin.settings.markdownlintRules = JSON.parse(
-                    JSON.stringify(DEFAULT_MARKDOWNLINT_RULES),
-                  ) as Record<string, boolean | Record<string, unknown>>;
-                  this.invalidateCache();
-                  await this.plugin.saveSettings();
-                  this.renderSettings(containerEl);
-                  new Notice('규칙 설정이 기본값으로 초기화되었습니다.');
-                })();
-              },
-            ).open();
-          }),
+           .setButtonText('초기화')
+           .setDestructive()
+           .onClick(() => {
+             new ConfirmationModal(this.plugin.app)
+               .setTitle('규칙 설정 초기화')
+               .setContent(
+                 '모든 Markdownlint 규칙 및 세부 옵션을 기본값으로 초기화하시겠습니까?',
+               )
+               .addButton((b) =>
+                 b
+                   .setButtonText('초기화')
+                   .setDestructive()
+                   .onClick(() => {
+                     void (async () => {
+                       this.plugin.settings.markdownlintRules = JSON.parse(
+                         JSON.stringify(DEFAULT_MARKDOWNLINT_RULES),
+                       ) as Record<string, boolean | Record<string, unknown>>;
+                       this.invalidateCache();
+                       await this.plugin.saveSettings();
+                       this.renderSettings(containerEl);
+                       new Notice('규칙 설정이 기본값으로 초기화되었습니다.');
+                     })();
+                   }),
+               )
+               .addButton((b) => b.setButtonText('취소').onClick(() => {}))
+               .open();
+           }),
       );
   }
 

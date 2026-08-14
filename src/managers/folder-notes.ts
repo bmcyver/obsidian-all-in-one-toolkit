@@ -74,7 +74,7 @@ export class FolderNoteManager extends BaseManager {
       },
     });
 
-    this.registerEventRef(
+    this.registerEvent(
       this.plugin.app.workspace.on('layout-change', () => {
         if (this.isEnabled()) {
           this.bindObservers();
@@ -87,11 +87,11 @@ export class FolderNoteManager extends BaseManager {
     window.addEventListener('click', this.onClick, { capture: true });
     this.windows.add(window);
 
-    this.registerEventRef(
+    this.registerEvent(
       this.plugin.app.workspace.on('window-open', this.windowOpenListener),
     );
 
-    this.registerEventRef(
+    this.registerEvent(
       this.plugin.app.vault.on('create', (file) => {
         if (!this.isEnabled()) return;
         if (file instanceof TFile && this.isFolderNotePath(file.path)) {
@@ -101,7 +101,7 @@ export class FolderNoteManager extends BaseManager {
       }),
     );
 
-    this.registerEventRef(
+    this.registerEvent(
       this.plugin.app.vault.on('delete', (file) => {
         if (!this.isEnabled()) return;
         if (file instanceof TFile && this.isFolderNotePath(file.path)) {
@@ -111,7 +111,7 @@ export class FolderNoteManager extends BaseManager {
       }),
     );
 
-    this.registerEventRef(
+    this.registerEvent(
       this.plugin.app.vault.on('rename', (file, oldPath) => {
         if (!this.isEnabled()) return;
         if (file instanceof TFolder) {
@@ -159,7 +159,7 @@ export class FolderNoteManager extends BaseManager {
       }),
     );
 
-    this.registerEventRef(
+    this.registerEvent(
       this.plugin.app.workspace.on('file-menu', (menu, folder) => {
         if (!this.isEnabled()) return;
         if (!(folder instanceof TFolder)) return;
