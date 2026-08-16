@@ -10,7 +10,7 @@ import type { WorkspaceWindow } from 'obsidian';
 import { splitFileName } from '../utils/file';
 import { BaseManager } from './base';
 import { createToggleSection } from '../utils/ui';
-import { EjsPromptModal } from '../ui/prompt-modal';
+import { EJSPromptModal } from '../ui/prompt-modal';
 
 export const SUPPORTED_EXTENSIONS = ['base', 'md', 'canvas'] as const;
 const NAV_FILES_CONTAINER = '.nav-files-container';
@@ -499,7 +499,7 @@ export class FolderNoteManager extends BaseManager {
   }
 
   async promptRenameFolderNote(folder: TFolder, noteFile: TFile) {
-    new EjsPromptModal(
+    new EJSPromptModal(
       this.plugin.app,
       '폴더 및 노트 이름 변경',
       folder.name,

@@ -1,6 +1,6 @@
 import { App, Modal, ButtonComponent } from 'obsidian';
 
-export class EjsSecurityModal extends Modal {
+export class EJSSecurityModal extends Modal {
   private templatePath: string;
   private templateContent: string;
   private onDecision: (allowed: boolean) => void;

@@ -12,12 +12,13 @@ import {
   ConfirmationModal,
 } from 'obsidian';
 import ejs from '../ejs/ejs';
-import { EjsSecurityModal } from '../ui/security-modal';
-import { EjsPromptModal } from '../ui/prompt-modal';
-import { EjsSelectModal } from '../ui/select-modal';
+import { EJSSecurityModal } from '../ui/security-modal';
+import { EJSPromptModal } from '../ui/prompt-modal';
+import { EJSSelectModal } from '../ui/select-modal';
 import { BaseManager } from './base';
 import { FolderSuggest, FileSuggest } from '../ui/folder-suggest';
 import { DEFAULT_SETTINGS } from '../settings';
+import { createEJSEditorExtension } from '../editor';
 import { stripFolderPrefix, isValidPath } from '../utils/file';
 import {
   showError,
@@ -30,7 +31,7 @@ import { calculateSHA256 } from '../utils/crypto';
 
 const EJS_ALLOWED_HASHES_KEY = 'ejs-allowed-hashes';
 
-interface EjsRenderContext {
+interface EJSRenderContext {
   app: App;
   file: TFile;
   title: string;
@@ -43,7 +44,7 @@ interface EjsRenderContext {
   ) => Promise<string>;
 }
 
-export class EjsManager extends BaseManager {
+export class EJSManager extends BaseManager {
   private compiledRules: Array<{ regex: RegExp; templatePath: string }> = [];
   private securityLock: Promise<void> = Promise.resolve();
   private allowedHashesCache: Record<string, string> | null = null;
@@ -76,6 +77,7 @@ export class EjsManager extends BaseManager {
 
   onload() {
     this.recompileRules();
+    this.plugin.registerEditorExtension(createEJSEditorExtension(this.plugin));
     this.registerEvent(
       this.plugin.app.vault.on('create', (file) => {
         if (!this.isEnabled()) return;
@@ -208,7 +210,7 @@ export class EjsManager extends BaseManager {
     }
   }
 
-  private async buildRenderContext(file: TFile): Promise<EjsRenderContext> {
+  private async buildRenderContext(file: TFile): Promise<EJSRenderContext> {
     return {
       app: this.plugin.app,
       file: file,
@@ -216,7 +218,7 @@ export class EjsManager extends BaseManager {
       moment: moment,
       prompt: (message: string, defaultValue = ''): Promise<string> => {
         return new Promise((resolve) => {
-          new EjsPromptModal(
+          new EJSPromptModal(
             this.plugin.app,
             message,
             defaultValue,
@@ -230,7 +232,7 @@ export class EjsManager extends BaseManager {
         values?: string[],
       ): Promise<string> => {
         return new Promise((resolve) => {
-          new EjsSelectModal(
+          new EJSSelectModal(
             this.plugin.app,
             message,
             items,
@@ -247,7 +249,7 @@ export class EjsManager extends BaseManager {
     templateContent: string,
   ): Promise<boolean> {
     return new Promise((resolve) => {
-      new EjsSecurityModal(
+      new EJSSecurityModal(
         this.plugin.app,
         templatePath,
         templateContent,
@@ -408,10 +410,7 @@ export class EjsManager extends BaseManager {
         badge.setAttribute('title', '승인 대기');
         setIcon(badge, 'alert-triangle');
 
-        showError(
-          errorMsgEl,
-          '보안 승인이 필요합니다.',
-        );
+        showError(errorMsgEl, '보안 승인이 필요합니다.');
 
         new ExtraButtonComponent(statusAreaEl)
           .setIcon('check-square')

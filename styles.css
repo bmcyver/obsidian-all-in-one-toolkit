@@ -619,3 +619,63 @@
 .tk-prompt-input {
   width: 100%;
 }
+
+/* ==========================================================================
+   7. EJS Editor Styles (Integrated with User Theme)
+   ========================================================================== */
+
+/* Multi-line EJS codeblock lines (rendered seamlessly like ``` codeblocks) */
+.cm-line.cm-ejs-codeblock-line {
+  background-color: var(--code-background, var(--background-primary-alt));
+  font-family: var(--font-monospace);
+  font-size: var(--code-size, 0.9em);
+}
+
+/* Single-line inline EJS tags (rendered like inline `code`) */
+.cm-line span.cm-ejs-inline-tag {
+  background-color: var(--code-background, var(--background-primary-alt));
+  font-family: var(--font-monospace);
+  font-size: var(--code-size, 0.9em);
+  border-radius: var(--radius-s, 4px);
+  padding: 0 4px;
+}
+
+/* EJS Delimiter tags */
+.cm-line span.cm-ejs-delimiter {
+  color: var(--text-accent);
+  font-weight: 700;
+  font-family: var(--font-monospace);
+}
+
+/* ==========================================================================
+   8. Autocomplete Icon Styles
+   ========================================================================== */
+
+.cm-tooltip-autocomplete ul li .cm-completionIcon {
+  margin-right: 6px;
+  opacity: 0.8;
+  font-family: var(--font-monospace);
+  font-size: 0.9em;
+}
+
+.cm-tooltip-autocomplete ul li .cm-completionIcon-property:after {
+  content: '𝒑';
+  font-style: italic;
+  font-weight: 600;
+  color: var(--color-cyan, var(--text-accent));
+}
+
+.cm-tooltip-autocomplete ul li .cm-completionIcon-variable:after {
+  content: '𝒗';
+  font-style: italic;
+  font-weight: 600;
+  color: var(--color-orange, var(--text-accent));
+}
+
+.cm-tooltip-autocomplete ul li .cm-completionIcon-function:after,
+.cm-tooltip-autocomplete ul li .cm-completionIcon-method:after {
+  content: 'ƒ';
+  font-style: italic;
+  font-weight: 600;
+  color: var(--color-blue, var(--text-accent));
+}

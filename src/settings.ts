@@ -12,7 +12,7 @@ export {
   getRuleDocUrl,
 } from './constants/markdownlint-rules';
 
-export interface EjsRule {
+export interface EJSRule {
   pattern: string;
   templatePath: string;
 }
@@ -33,7 +33,7 @@ export interface ToolkitSettings {
   folderNoteExtension: string;
   // EJS Templates
   ejsTemplatesFolder: string;
-  ejsRules: EjsRule[];
+  ejsRules: EJSRule[];
   // Periodic notes
   periodicNotesFolder: string;
   // Markdownlint

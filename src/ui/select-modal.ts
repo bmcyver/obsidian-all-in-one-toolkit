@@ -1,6 +1,6 @@
 import { App, FuzzySuggestModal, type FuzzyMatch } from 'obsidian';
 
-export class EjsSelectModal extends FuzzySuggestModal<string> {
+export class EJSSelectModal extends FuzzySuggestModal<string> {
   private resolve: (value: string) => void;
   private submitted = false;
   private textItems: string[];

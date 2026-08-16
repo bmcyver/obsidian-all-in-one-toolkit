@@ -112,7 +112,7 @@ export class PromptModal extends Modal {
 }
 
 /**
- * Backward compatibility alias for EjsPromptModal
+ * Backward compatibility alias for EJSPromptModal
  */
-export const EjsPromptModal = PromptModal;
-export type EjsPromptModal = PromptModal;
+export const EJSPromptModal = PromptModal;
+export type EJSPromptModal = PromptModal;
