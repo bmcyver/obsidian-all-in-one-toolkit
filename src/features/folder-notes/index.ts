@@ -34,7 +34,10 @@ export class FolderNoteFeature extends Feature {
   }
 
   onload() {
-    this.bindObservers();
+    if (this.isEnabled()) {
+      this.rebuildFolderNotePathsCache();
+      this.bindObservers();
+    }
 
     this.plugin.addCommand({
       id: 'folder-note-rename',
@@ -79,8 +82,6 @@ export class FolderNoteFeature extends Feature {
         }
       }),
     );
-
-    this.rebuildFolderNotePathsCache();
 
     window.addEventListener('click', this.onClick, { capture: true });
     this.windows.add(window);
@@ -192,7 +193,7 @@ export class FolderNoteFeature extends Feature {
     );
   }
 
-  onunload() {
+  override onunload() {
     this.disconnectObservers();
     if (this.frameId !== null) {
       window.cancelAnimationFrame(this.frameId);

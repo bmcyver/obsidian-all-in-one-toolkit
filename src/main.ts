@@ -33,15 +33,22 @@ export default class AllInOneToolkitPlugin extends Plugin {
   async onload() {
     await this.loadSettings();
 
-    // 1. Initialize Features and register as child components
-    this.periodicNotes = this.addChild(new PeriodicNotesFeature(this));
-    this.folderNotes = this.addChild(new FolderNoteFeature(this));
-    this.imageConverter = this.addChild(new ImageConverterFeature(this));
-    this.trashManager = this.addChild(new TrashManagerFeature(this));
-    this.ejs = this.addChild(new EJSFeature(this));
-    this.markdownlint = this.addChild(new MarkdownlintFeature(this));
+    // 1. Initialize Feature instances
+    this.periodicNotes = new PeriodicNotesFeature(this);
+    this.folderNotes = new FolderNoteFeature(this);
+    this.imageConverter = new ImageConverterFeature(this);
+    this.trashManager = new TrashManagerFeature(this);
+    this.ejs = new EJSFeature(this);
+    this.markdownlint = new MarkdownlintFeature(this);
 
-    // 2. Register settings tab
+    // 2. Register and load all features when workspace layout is ready
+    this.app.workspace.onLayoutReady(() => {
+      for (const feature of this.features) {
+        this.addChild(feature);
+      }
+    });
+
+    // 3. Register settings tab
     this.addSettingTab(new AllInOneToolkitSettingTab(this.app, this));
   }
 
