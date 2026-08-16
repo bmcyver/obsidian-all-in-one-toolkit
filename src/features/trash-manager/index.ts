@@ -1,8 +1,7 @@
-import { ensureDirectoryExists } from '../utils/file';
-import { TrashManagerModal } from '../ui/trash-modal';
-import { BaseManager } from './base';
-import { limitConcurrency } from '../utils/async';
-import { createToggleSection } from '../utils/ui';
+import { ensureDirectoryExists } from '../../shared/utils/file';
+import { TrashManagerModal } from './modal';
+import { Feature } from '../../shared/types';
+import { createToggleSection } from '../../shared/ui/settings-helpers';
 
 export interface TrashFile {
   path: string; // e.g. ".trash/folder/note.md"
@@ -15,8 +14,8 @@ export interface TrashFile {
 const TRASH_DIR = '.trash';
 const TRASH_PREFIX_LEN = TRASH_DIR.length + 1; // '.trash/'.length
 
-export class TrashManager extends BaseManager {
-  protected isEnabled(): boolean {
+export class TrashManagerFeature extends Feature {
+  private isEnabled(): boolean {
     return this.plugin.settings.trashManagerEnabled;
   }
 
@@ -54,9 +53,8 @@ export class TrashManager extends BaseManager {
     const list = await adapter.list(dir);
     const files: TrashFile[] = [];
 
-    // Limit concurrency of stat() calls to 50 to avoid I/O bottlenecks
-    const stats = await limitConcurrency(list.files, 50, (f) =>
-      adapter.stat(f).catch(() => null),
+    const stats = await Promise.all(
+      list.files.map((f) => adapter.stat(f).catch(() => null)),
     );
 
     for (let i = 0; i < list.files.length; i++) {
@@ -76,10 +74,8 @@ export class TrashManager extends BaseManager {
     }
 
     if (list.folders.length > 0) {
-      const folderFilesResults = await limitConcurrency(
-        list.folders,
-        10,
-        (folder) => this.collectTrashFiles(folder),
+      const folderFilesResults = await Promise.all(
+        list.folders.map((folder) => this.collectTrashFiles(folder)),
       );
       for (const folderFiles of folderFilesResults) {
         for (const file of folderFiles) {
@@ -122,16 +118,22 @@ export class TrashManager extends BaseManager {
 
   private async getUniqueRestorePath(originalPath: string): Promise<string> {
     const adapter = this.plugin.app.vault.adapter;
-    let path = originalPath;
-    const lastDot = path.lastIndexOf('.');
-    const extension = lastDot > 0 ? path.slice(lastDot + 1) : '';
-    const baseWithoutExt = lastDot > 0 ? path.slice(0, lastDot) : path;
+    const lastSlash = originalPath.lastIndexOf('/');
+    const dir = lastSlash >= 0 ? originalPath.slice(0, lastSlash + 1) : '';
+    const filename =
+      lastSlash >= 0 ? originalPath.slice(lastSlash + 1) : originalPath;
+
+    const lastDot = filename.lastIndexOf('.');
+    const extension = lastDot > 0 ? filename.slice(lastDot + 1) : '';
+    const nameWithoutExt = lastDot > 0 ? filename.slice(0, lastDot) : filename;
 
     let counter = 1;
+    let path = originalPath;
     while (await adapter.exists(path)) {
-      path = extension
-        ? `${baseWithoutExt} (${counter}).${extension}`
-        : `${baseWithoutExt} (${counter})`;
+      const candidateName = extension
+        ? `${nameWithoutExt} (${counter}).${extension}`
+        : `${nameWithoutExt} (${counter})`;
+      path = `${dir}${candidateName}`;
       counter++;
     }
     return path;

@@ -1,53 +1,48 @@
 import { Plugin } from 'obsidian';
 import { AllInOneToolkitSettingTab, DEFAULT_SETTINGS } from './settings';
 import type { ToolkitSettings } from './settings';
-import { BaseManager } from './managers/base';
-import { PeriodicNotesManager } from './managers/periodic-notes';
-import { FolderNoteManager } from './managers/folder-notes';
-import { ImageConverterManager } from './managers/image-converter';
-import { TrashManager } from './managers/trash-manager';
-import { EJSManager } from './managers/ejs-manager';
-import { MarkdownlintManager } from './managers/markdownlint';
+import type { Feature } from './shared/types';
+import { PeriodicNotesFeature } from './features/periodic-notes';
+import { FolderNoteFeature } from './features/folder-notes';
+import { ImageConverterFeature } from './features/image-converter';
+import { TrashManagerFeature } from './features/trash-manager';
+import { EJSFeature } from './features/ejs';
+import { MarkdownlintFeature } from './features/markdownlint';
 
 export default class AllInOneToolkitPlugin extends Plugin {
   declare settings: ToolkitSettings;
-  public readonly managers: BaseManager[] = [];
+
+  public periodicNotes!: PeriodicNotesFeature;
+  public folderNotes!: FolderNoteFeature;
+  public imageConverter!: ImageConverterFeature;
+  public trashManager!: TrashManagerFeature;
+  public ejs!: EJSFeature;
+  public markdownlint!: MarkdownlintFeature;
+
+  public get features(): Feature[] {
+    return [
+      this.periodicNotes,
+      this.folderNotes,
+      this.imageConverter,
+      this.trashManager,
+      this.ejs,
+      this.markdownlint,
+    ];
+  }
 
   async onload() {
     await this.loadSettings();
 
-    // 1. Initialize and register Managers in the array directly
-    this.managers.push(
-      new PeriodicNotesManager(this),
-      new FolderNoteManager(this),
-      new ImageConverterManager(this),
-      new TrashManager(this),
-      new EJSManager(this),
-      new MarkdownlintManager(this),
-    );
+    // 1. Initialize Features and register as child components
+    this.periodicNotes = this.addChild(new PeriodicNotesFeature(this));
+    this.folderNotes = this.addChild(new FolderNoteFeature(this));
+    this.imageConverter = this.addChild(new ImageConverterFeature(this));
+    this.trashManager = this.addChild(new TrashManagerFeature(this));
+    this.ejs = this.addChild(new EJSFeature(this));
+    this.markdownlint = this.addChild(new MarkdownlintFeature(this));
 
-    // 2. Load all managers when layout is ready
-    this.app.workspace.onLayoutReady(() => {
-      for (const manager of this.managers) {
-        manager.enable();
-      }
-    });
-
-    // 3. Register settings tab
+    // 2. Register settings tab
     this.addSettingTab(new AllInOneToolkitSettingTab(this.app, this));
-  }
-
-  onunload() {
-    // Unload all managers in reverse order
-    for (const manager of this.managers.toReversed()) {
-      manager.disable();
-    }
-  }
-
-  getManager<T extends BaseManager>(
-    type: new (plugin: AllInOneToolkitPlugin) => T,
-  ): T | undefined {
-    return this.managers.find((m) => m instanceof type) as T | undefined;
   }
 
   async loadSettings() {
@@ -67,8 +62,8 @@ export default class AllInOneToolkitPlugin extends Plugin {
 
   async saveSettings() {
     await this.saveData(this.settings);
-    for (const manager of this.managers) {
-      manager.onSettingsUpdate();
+    for (const feature of this.features) {
+      feature.onSettingsUpdate();
     }
   }
 }

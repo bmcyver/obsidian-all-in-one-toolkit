@@ -11,23 +11,22 @@ import {
   ExtraButtonComponent,
   ConfirmationModal,
 } from 'obsidian';
-import ejs from '../ejs/ejs';
-import { EJSSecurityModal } from '../ui/security-modal';
-import { EJSPromptModal } from '../ui/prompt-modal';
-import { EJSSelectModal } from '../ui/select-modal';
-import { BaseManager } from './base';
-import { FolderSuggest, FileSuggest } from '../ui/folder-suggest';
-import { DEFAULT_SETTINGS } from '../settings';
-import { createEJSEditorExtension } from '../editor';
-import { stripFolderPrefix, isValidPath } from '../utils/file';
+import ejs from '../../ejs/ejs';
+import { EJSSecurityModal, EJSSelectModal } from './modals';
+import { PromptModal } from '../../shared/ui/prompt-modal';
+import { Feature } from '../../shared/types';
+import { FolderSuggest, FileSuggest } from '../../shared/ui/folder-suggest';
+import { DEFAULT_SETTINGS } from '../../settings';
+import { createEJSHighlightExtension } from './highlight';
+import { createEJSAutocompleteExtension } from './autocomplete';
+import { stripFolderPrefix, isValidPath } from '../../shared/utils/file';
 import {
   showError,
   clearError,
   createToggleSection,
   addErrorContainer,
   createFoldableSection,
-} from '../utils/ui';
-import { calculateSHA256 } from '../utils/crypto';
+} from '../../shared/ui/settings-helpers';
 
 const EJS_ALLOWED_HASHES_KEY = 'ejs-allowed-hashes';
 
@@ -36,20 +35,22 @@ interface EJSRenderContext {
   file: TFile;
   title: string;
   moment: typeof moment;
-  prompt: (message: string, defaultValue?: string) => Promise<string>;
-  select: (
-    message: string,
-    items: string[],
-    values?: string[],
-  ) => Promise<string>;
+  ejs: {
+    prompt: (message: string, defaultValue?: string) => Promise<string>;
+    select: (
+      message: string,
+      items: string[],
+      values?: string[],
+    ) => Promise<string>;
+  };
 }
 
-export class EJSManager extends BaseManager {
+export class EJSFeature extends Feature {
   private compiledRules: Array<{ regex: RegExp; templatePath: string }> = [];
   private securityLock: Promise<void> = Promise.resolve();
   private allowedHashesCache: Record<string, string> | null = null;
 
-  protected isEnabled(): boolean {
+  private isEnabled(): boolean {
     return this.plugin.settings.ejsEnabled;
   }
 
@@ -77,7 +78,10 @@ export class EJSManager extends BaseManager {
 
   onload() {
     this.recompileRules();
-    this.plugin.registerEditorExtension(createEJSEditorExtension(this.plugin));
+    this.plugin.registerEditorExtension([
+      createEJSHighlightExtension(this.plugin),
+      createEJSAutocompleteExtension(this.plugin),
+    ]);
     this.registerEvent(
       this.plugin.app.vault.on('create', (file) => {
         if (!this.isEnabled()) return;
@@ -86,11 +90,18 @@ export class EJSManager extends BaseManager {
     );
   }
 
-  onSettingsUpdate() {
-    super.onSettingsUpdate();
+  override onSettingsUpdate() {
     if (this.isEnabled()) {
       this.recompileRules();
     }
+  }
+
+  private async calculateSHA256(text: string): Promise<string> {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(text);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
   }
 
   private recompileRules() {
@@ -179,7 +190,7 @@ export class EJSManager extends BaseManager {
 
     try {
       const templateContent = await this.plugin.app.vault.read(templateFile);
-      const calculatedHash = await calculateSHA256(templateContent);
+      const calculatedHash = await this.calculateSHA256(templateContent);
 
       const isAllowed = await this.checkAndPromptSecurity(
         templatePath,
@@ -216,30 +227,32 @@ export class EJSManager extends BaseManager {
       file: file,
       title: file.basename,
       moment: moment,
-      prompt: (message: string, defaultValue = ''): Promise<string> => {
-        return new Promise((resolve) => {
-          new EJSPromptModal(
-            this.plugin.app,
-            message,
-            defaultValue,
-            resolve,
-          ).open();
-        });
-      },
-      select: (
-        message: string,
-        items: string[],
-        values?: string[],
-      ): Promise<string> => {
-        return new Promise((resolve) => {
-          new EJSSelectModal(
-            this.plugin.app,
-            message,
-            items,
-            values || [],
-            resolve,
-          ).open();
-        });
+      ejs: {
+        prompt: (message: string, defaultValue = ''): Promise<string> => {
+          return new Promise((resolve) => {
+            new PromptModal(
+              this.plugin.app,
+              message,
+              defaultValue,
+              resolve,
+            ).open();
+          });
+        },
+        select: (
+          message: string,
+          items: string[],
+          values?: string[],
+        ): Promise<string> => {
+          return new Promise((resolve) => {
+            new EJSSelectModal(
+              this.plugin.app,
+              message,
+              items,
+              values || [],
+              resolve,
+            ).open();
+          });
+        },
       },
     };
   }
@@ -318,9 +331,32 @@ export class EJSManager extends BaseManager {
       DEFAULT_SETTINGS.ejsTemplatesFolder;
 
     const rules = this.plugin.settings.ejsRules;
+    let draggedIndex: number | null = null;
+
     for (let idx = 0; idx < rules.length; idx++) {
       const rule = rules[idx]!;
-      this.renderRuleItem(listEl, rule, idx, rulesContainer, templatesFolder);
+      this.renderRuleItem(
+        listEl,
+        rule,
+        idx,
+        rulesContainer,
+        templatesFolder,
+        (fromIdx, toIdx) => {
+          const [movedItem] = this.plugin.settings.ejsRules.splice(fromIdx, 1);
+          if (movedItem) {
+            this.plugin.settings.ejsRules.splice(toIdx, 0, movedItem);
+            void (async () => {
+              await this.plugin.saveSettings();
+              this.recompileRules();
+              this.renderRules(rulesContainer);
+            })();
+          }
+        },
+        () => draggedIndex,
+        (val) => {
+          draggedIndex = val;
+        },
+      );
     }
 
     new Setting(rulesContainer)
@@ -396,7 +432,7 @@ export class EJSManager extends BaseManager {
 
     try {
       const content = await this.plugin.app.vault.read(file);
-      const calculatedHash = await calculateSHA256(content);
+      const calculatedHash = await this.calculateSHA256(content);
 
       const allowedHashes = this.getAllowedHashes();
       const isAllowed = allowedHashes[fullPath] === calculatedHash;
@@ -443,9 +479,20 @@ export class EJSManager extends BaseManager {
     idx: number,
     rulesContainer: HTMLElement,
     templatesFolder: string,
+    onReorder: (fromIdx: number, toIdx: number) => void,
+    getDraggedIndex: () => number | null,
+    setDraggedIndex: (val: number | null) => void,
   ) {
     const ruleEl = listEl.createDiv('ejs-rule-item');
+    ruleEl.draggable = true;
+
     const mainRowEl = ruleEl.createDiv('ejs-rule-main-row');
+
+    const dragHandleEl = mainRowEl.createDiv('ejs-rule-drag-handle');
+    setIcon(dragHandleEl, 'grip-vertical');
+    dragHandleEl.setAttribute('aria-label', '드래그하여 순서 변경');
+    dragHandleEl.setAttribute('title', '드래그하여 순서 변경');
+
     const statusAreaEl = mainRowEl.createDiv('ejs-rule-status-area');
     const errorMsgEl = ruleEl.createDiv('ejs-rule-error-msg is-hidden');
 
@@ -459,7 +506,62 @@ export class EJSManager extends BaseManager {
       templatesFolder,
       triggerUpdate,
     );
-    this.createControlButtons(mainRowEl, idx, rulesContainer);
+    this.createDeleteButton(mainRowEl, idx, rulesContainer);
+
+    // Drag & Drop Event Listeners
+    ruleEl.addEventListener('dragstart', (e: DragEvent) => {
+      setDraggedIndex(idx);
+      ruleEl.addClass('is-dragging');
+      if (e.dataTransfer) {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', String(idx));
+      }
+    });
+
+    ruleEl.addEventListener('dragend', () => {
+      setDraggedIndex(null);
+      listEl.querySelectorAll('.ejs-rule-item').forEach((el) => {
+        el.removeClass('is-dragging');
+        el.removeClass('is-drag-over-top');
+        el.removeClass('is-drag-over-bottom');
+      });
+    });
+
+    ruleEl.addEventListener('dragover', (e: DragEvent) => {
+      const currentDragged = getDraggedIndex();
+      if (currentDragged === null || currentDragged === idx) return;
+      e.preventDefault();
+      if (e.dataTransfer) {
+        e.dataTransfer.dropEffect = 'move';
+      }
+      const rect = ruleEl.getBoundingClientRect();
+      const isTopHalf = e.clientY < rect.top + rect.height / 2;
+      ruleEl.toggleClass('is-drag-over-top', isTopHalf);
+      ruleEl.toggleClass('is-drag-over-bottom', !isTopHalf);
+    });
+
+    ruleEl.addEventListener('dragleave', () => {
+      ruleEl.removeClass('is-drag-over-top');
+      ruleEl.removeClass('is-drag-over-bottom');
+    });
+
+    ruleEl.addEventListener('drop', (e: DragEvent) => {
+      e.preventDefault();
+      ruleEl.removeClass('is-drag-over-top');
+      ruleEl.removeClass('is-drag-over-bottom');
+      const currentDragged = getDraggedIndex();
+      if (currentDragged === null || currentDragged === idx) return;
+
+      const rect = ruleEl.getBoundingClientRect();
+      const isTopHalf = e.clientY < rect.top + rect.height / 2;
+      let targetIdx = isTopHalf ? idx : idx + 1;
+      if (currentDragged < targetIdx) {
+        targetIdx -= 1;
+      }
+      if (currentDragged !== targetIdx) {
+        onReorder(currentDragged, targetIdx);
+      }
+    });
 
     void triggerUpdate();
   }
@@ -536,50 +638,12 @@ export class EJSManager extends BaseManager {
     });
   }
 
-  private createControlButtons(
+  private createDeleteButton(
     mainRowEl: HTMLElement,
     idx: number,
     rulesContainer: HTMLElement,
   ) {
     const controlsEl = mainRowEl.createDiv('ejs-rule-controls');
-
-    if (idx > 0) {
-      new ExtraButtonComponent(controlsEl)
-        .setIcon('chevron-up')
-        .setTooltip('위로 이동')
-        .onClick(() => {
-          void (async () => {
-            const current = this.plugin.settings.ejsRules[idx];
-            const target = this.plugin.settings.ejsRules[idx - 1];
-            if (current && target) {
-              this.plugin.settings.ejsRules[idx - 1] = current;
-              this.plugin.settings.ejsRules[idx] = target;
-              await this.plugin.saveSettings();
-              this.recompileRules();
-              this.renderRules(rulesContainer);
-            }
-          })();
-        });
-    }
-
-    if (idx < this.plugin.settings.ejsRules.length - 1) {
-      new ExtraButtonComponent(controlsEl)
-        .setIcon('chevron-down')
-        .setTooltip('아래로 이동')
-        .onClick(() => {
-          void (async () => {
-            const current = this.plugin.settings.ejsRules[idx];
-            const target = this.plugin.settings.ejsRules[idx + 1];
-            if (current && target) {
-              this.plugin.settings.ejsRules[idx + 1] = current;
-              this.plugin.settings.ejsRules[idx] = target;
-              await this.plugin.saveSettings();
-              this.recompileRules();
-              this.renderRules(rulesContainer);
-            }
-          })();
-        });
-    }
 
     new ExtraButtonComponent(controlsEl)
       .setIcon('x')

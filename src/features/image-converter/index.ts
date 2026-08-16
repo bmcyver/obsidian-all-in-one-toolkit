@@ -1,4 +1,4 @@
-import { type Editor, Notice, Setting, TFile } from 'obsidian';
+import { type Editor, Notice, Setting, TFile, normalizePath } from 'obsidian';
 import {
   SUPPORTED_IMAGE_EXTENSIONS,
   CONVERTED_NAME_REGEX,
@@ -6,28 +6,23 @@ import {
   isValidImageFile,
   getImageMimeType,
   toWebP,
-} from '../utils/image';
-import {
-  normalizeFileName,
-  ensureDirectoryExists,
-  formatBytes,
-  isValidPath,
-} from '../utils/file';
-import { BaseManager } from './base';
-import { FolderSuggest } from '../ui/folder-suggest';
-import { DEFAULT_SETTINGS } from '../settings';
+} from './convert-worker';
+import { ensureDirectoryExists, isValidPath } from '../../shared/utils/file';
+import { formatBytes } from '../../shared/utils/format';
+import { Feature } from '../../shared/types';
+import { FolderSuggest } from '../../shared/ui/folder-suggest';
+import { DEFAULT_SETTINGS } from '../../settings';
 import {
   createToggleSection,
   addErrorContainer,
   showError,
   clearError,
-} from '../utils/ui';
-import { limitConcurrency } from '../utils/async';
+} from '../../shared/ui/settings-helpers';
 
-export class ImageConverterManager extends BaseManager {
+export class ImageConverterFeature extends Feature {
   private assetPathCounter = 0;
 
-  protected isEnabled(): boolean {
+  private isEnabled(): boolean {
     return this.plugin.settings.imageConverterEnabled;
   }
 
@@ -37,7 +32,10 @@ export class ImageConverterManager extends BaseManager {
     const resolvedFolder = window.moment().format(storePathSetting);
     this.assetPathCounter = (this.assetPathCounter + 1) % 10000;
     const uniqueId = `${Date.now()}-${this.assetPathCounter}`;
-    return `${resolvedFolder}/${normalizeFileName(basename)}-${uniqueId}.${extension}`;
+    const cleanBasename = basename.replace(/[\\/:*?"<>|[\]#^]/g, '_').trim();
+    return normalizePath(
+      `${resolvedFolder}/${cleanBasename}-${uniqueId}.${extension}`,
+    );
   }
 
   onload() {
@@ -206,25 +204,9 @@ export class ImageConverterManager extends BaseManager {
 
     const sourceExtension = sourceFile.extension.toLowerCase();
     const shouldSkipConversion = isAvifFile(sourceExtension);
-
-    let targetBasename = noteBasename;
-    if (!targetBasename) {
-      const targetPath = sourceFile.path;
-      for (const [sourcePath, links] of Object.entries(
-        this.plugin.app.metadataCache.resolvedLinks,
-      )) {
-        if (links[targetPath]) {
-          const file = this.plugin.app.vault.getFileByPath(sourcePath);
-          if (file) {
-            targetBasename = file.basename;
-            break;
-          }
-        }
-      }
-      if (!targetBasename) {
-        targetBasename = sourceFile.basename;
-      }
-    }
+    const activeFile = this.plugin.app.workspace.getActiveFile();
+    const targetBasename =
+      noteBasename || (activeFile ? activeFile.basename : sourceFile.basename);
 
     const destinationPath = this.buildAssetPath(
       targetBasename,
@@ -240,16 +222,9 @@ export class ImageConverterManager extends BaseManager {
         shouldSkipConversion,
       );
 
-      if (shouldSkipConversion) {
-        await this.plugin.app.fileManager.renameFile(
-          sourceFile,
-          destinationPath,
-        );
-      } else {
-        await this.plugin.app.fileManager.renameFile(
-          sourceFile,
-          destinationPath,
-        );
+      await this.plugin.app.fileManager.renameFile(sourceFile, destinationPath);
+
+      if (!shouldSkipConversion) {
         await this.plugin.app.vault.modifyBinary(sourceFile, outputData);
       }
 
@@ -283,42 +258,40 @@ export class ImageConverterManager extends BaseManager {
       skipped: boolean;
     }[] = [];
 
-    const results = await limitConcurrency(
-      sourceFiles,
-      3,
-      async (sourceFile) => {
-        try {
-          const shouldSkipConversion = isAvifFile(sourceFile);
-          const destinationPath = this.buildAssetPath(
-            activeFile.basename,
-            shouldSkipConversion ? 'avif' : 'webp',
-          );
+    const conversionPromises = sourceFiles.map(async (sourceFile) => {
+      try {
+        const shouldSkipConversion = isAvifFile(sourceFile);
+        const destinationPath = this.buildAssetPath(
+          activeFile.basename,
+          shouldSkipConversion ? 'avif' : 'webp',
+        );
 
-          await ensureDirectoryExists(this.plugin.app, destinationPath);
+        await ensureDirectoryExists(this.plugin.app, destinationPath);
 
-          const outputData = await this.convertImage(
-            sourceFile,
-            shouldSkipConversion,
-          );
-          const createdFile = await this.plugin.app.vault.createBinary(
-            destinationPath,
-            outputData,
-          );
+        const outputData = await this.convertImage(
+          sourceFile,
+          shouldSkipConversion,
+        );
+        const createdFile = await this.plugin.app.vault.createBinary(
+          destinationPath,
+          outputData,
+        );
 
-          return {
-            file: createdFile,
-            originalName: sourceFile.name,
-            originalSize: sourceFile.size,
-            skipped: shouldSkipConversion,
-          };
-        } catch (err) {
-          new Notice(
-            `이미지 변환 실패 (${sourceFile.name}): ${(err as Error).message}`,
-          );
-          return null;
-        }
-      },
-    );
+        return {
+          file: createdFile,
+          originalName: sourceFile.name,
+          originalSize: sourceFile.size,
+          skipped: shouldSkipConversion,
+        };
+      } catch (err) {
+        new Notice(
+          `이미지 변환 실패 (${sourceFile.name}): ${(err as Error).message}`,
+        );
+        return null;
+      }
+    });
+
+    const results = await Promise.all(conversionPromises);
 
     const markdownLinks: string[] = [];
     for (const res of results) {
@@ -369,27 +342,22 @@ export class ImageConverterManager extends BaseManager {
       return;
     }
 
-    const results = await limitConcurrency(
-      linkedImageFiles,
-      3,
-      async (imageFile) => {
-        try {
-          await this.handleFileMenuEvent(imageFile, noteFile.basename);
-          return { status: 'fulfilled' as const, file: imageFile };
-        } catch (reason) {
-          return { status: 'rejected' as const, file: imageFile, reason };
-        }
-      },
+    const results = await Promise.allSettled(
+      linkedImageFiles.map((imageFile) =>
+        this.handleFileMenuEvent(imageFile, noteFile.basename),
+      ),
     );
 
     let successCount = 0;
-    for (const r of results) {
+    for (let i = 0; i < results.length; i++) {
+      const r = results[i]!;
       if (r.status === 'fulfilled') {
         successCount++;
-      } else if (r.status === 'rejected') {
+      } else {
+        const file = linkedImageFiles[i];
         const errorMsg =
           r.reason instanceof Error ? r.reason.message : String(r.reason);
-        new Notice(`이미지 변환 실패 (${r.file.name}): ${errorMsg}`);
+        new Notice(`이미지 변환 실패 (${file?.name}): ${errorMsg}`);
       }
     }
 
@@ -407,35 +375,18 @@ export class ImageConverterManager extends BaseManager {
       },
     );
 
-    const qualitySetting = new Setting(detailEl)
+    new Setting(detailEl)
       .setName('WebP 품질')
-      .setDesc('변환할 WebP 이미지 품질을 설정합니다 (0-100).');
-
-    const qualityErrorEl = addErrorContainer(qualitySetting);
-
-    qualitySetting.addText((text) => {
-      text.inputEl.type = 'number';
-      text.inputEl.min = '0';
-      text.inputEl.max = '100';
-      text.setValue(String(this.plugin.settings.webpQuality));
-
-      text.onChange((value) => {
-        void (async () => {
-          const num = parseInt(value, 10);
-          if (value.trim() === '' || isNaN(num)) {
-            showError(qualityErrorEl, '올바른 숫자를 입력해 주세요.');
-            return;
-          }
-          if (num < 0 || num > 100) {
-            showError(qualityErrorEl, '0에서 100 사이의 숫자를 입력해 주세요.');
-            return;
-          }
-          clearError(qualityErrorEl);
-          this.plugin.settings.webpQuality = num;
-          await this.plugin.saveSettings();
-        })();
+      .setDesc('변환할 WebP 이미지 품질을 설정합니다 (1-100).')
+      .addSlider((slider) => {
+        slider
+          .setLimits(1, 100, 1)
+          .setValue(this.plugin.settings.webpQuality)
+          .onChange(async (value) => {
+            this.plugin.settings.webpQuality = value;
+            await this.plugin.saveSettings();
+          });
       });
-    });
 
     const pathSetting = new Setting(detailEl)
       .setName('WebP 저장 경로')

@@ -1,33 +1,19 @@
 import { AbstractInputSuggest, type App, TFolder, TFile } from 'obsidian';
-import { DEFAULT_SETTINGS } from '../settings';
+import { DEFAULT_SETTINGS } from '../../settings';
 import { stripFolderPrefix } from '../utils/file';
 
 export class FolderSuggest extends AbstractInputSuggest<TFolder> {
-  // textInputEl from AbstractInputSuggest is typed broadly as HTMLInputElement | HTMLTextAreaElement,
-  // and might not be exposed properly in all environment configurations.
-  // We keep a typed inputEl reference to perform type-safe value assignments.
-  private inputEl: HTMLInputElement;
-
   constructor(app: App, textInputEl: HTMLInputElement) {
     super(app, textInputEl);
-    this.inputEl = textInputEl;
   }
 
   getSuggestions(inputStr: string): TFolder[] {
-    const abstractFiles = this.app.vault.getAllLoadedFiles();
-    const folders: TFolder[] = [];
+    const folders = this.app.vault.getAllFolders();
     const lowerCaseInputStr = inputStr.toLowerCase();
 
-    for (const file of abstractFiles) {
-      if (
-        file instanceof TFolder &&
-        file.path.toLowerCase().includes(lowerCaseInputStr)
-      ) {
-        folders.push(file);
-      }
-    }
-
-    return folders;
+    return folders.filter((folder) =>
+      folder.path.toLowerCase().includes(lowerCaseInputStr),
+    );
   }
 
   renderSuggestion(file: TFolder, el: HTMLElement): void {
@@ -35,31 +21,27 @@ export class FolderSuggest extends AbstractInputSuggest<TFolder> {
   }
 
   selectSuggestion(file: TFolder): void {
-    this.inputEl.value = file.path;
-    this.inputEl.dispatchEvent(new Event('input'));
+    this.setValue(file.path);
     this.close();
   }
 }
 
 export class FileSuggest extends AbstractInputSuggest<TFile> {
-  // Similar to FolderSuggest, we keep a typed inputEl reference to guarantee HTMLInputElement type safety.
-  private inputEl: HTMLInputElement;
   private templateFolder: string;
 
   constructor(app: App, textInputEl: HTMLInputElement, templateFolder: string) {
     super(app, textInputEl);
-    this.inputEl = textInputEl;
     this.templateFolder = templateFolder;
   }
 
   getSuggestions(inputStr: string): TFile[] {
     const files = this.app.vault.getFiles();
-    const suggestions: TFile[] = [];
     const lowerCaseInputStr = inputStr.toLowerCase();
     const folderPath = (
       this.templateFolder || DEFAULT_SETTINGS.ejsTemplatesFolder
     ).toLowerCase();
 
+    const suggestions: TFile[] = [];
     for (const file of files) {
       if (!file.path.toLowerCase().startsWith(folderPath + '/')) continue;
 
@@ -85,8 +67,7 @@ export class FileSuggest extends AbstractInputSuggest<TFile> {
     const folderPath =
       this.templateFolder || DEFAULT_SETTINGS.ejsTemplatesFolder;
     const displayPath = stripFolderPrefix(file.path, folderPath);
-    this.inputEl.value = displayPath;
-    this.inputEl.dispatchEvent(new Event('input'));
+    this.setValue(displayPath);
     this.close();
   }
 }

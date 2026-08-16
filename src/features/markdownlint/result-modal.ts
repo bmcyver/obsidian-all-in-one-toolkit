@@ -7,7 +7,7 @@ import {
   ButtonComponent,
 } from 'obsidian';
 import type { LintError } from 'markdownlint';
-import { getRuleDocUrl } from '../constants/markdownlint-rules';
+import { getRuleDocUrl } from './rules';
 
 export class MarkdownlintResultModal extends Modal {
   private editor: Editor;
@@ -180,8 +180,14 @@ export class MarkdownlintResultModal extends Modal {
       }
 
       if (isFixable) {
-        itemHeaderEl.createSpan({
+        const fixableTag = itemHeaderEl.createSpan({
           cls: 'tk-markdownlint-fixable-tag',
+        });
+        const iconSpan = fixableTag.createSpan({
+          cls: 'tk-markdownlint-fixable-icon',
+        });
+        setIcon(iconSpan, 'wrench');
+        fixableTag.createSpan({
           text: '자동 수정 가능',
         });
       }

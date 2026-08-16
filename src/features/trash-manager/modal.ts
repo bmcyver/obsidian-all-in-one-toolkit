@@ -7,13 +7,13 @@ import {
   ExtraButtonComponent,
   ConfirmationModal,
 } from 'obsidian';
-import type AllInOneToolkitPlugin from '../main';
-import { TrashManager, type TrashFile } from '../managers/trash-manager';
-import { formatBytes } from '../utils/file';
+import type AllInOneToolkitPlugin from '../../main';
+import type { TrashManagerFeature, TrashFile } from './index';
+import { formatBytes } from '../../shared/utils/format';
 
 export class TrashManagerModal extends Modal {
   private plugin: AllInOneToolkitPlugin;
-  private trashManager: TrashManager;
+  private trashManager: TrashManagerFeature;
   private items: TrashFile[] = [];
   private filteredItems: TrashFile[] = [];
   private searchQuery = '';
@@ -26,11 +26,7 @@ export class TrashManagerModal extends Modal {
   constructor(app: App, plugin: AllInOneToolkitPlugin) {
     super(app);
     this.plugin = plugin;
-    const manager = plugin.getManager(TrashManager);
-    if (!manager) {
-      throw new Error('TrashManager is not loaded');
-    }
-    this.trashManager = manager;
+    this.trashManager = plugin.trashManager;
   }
 
   onOpen() {

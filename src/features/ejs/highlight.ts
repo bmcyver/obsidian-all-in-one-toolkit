@@ -7,8 +7,8 @@ import {
   type EditorView,
   type PluginValue,
 } from '@codemirror/view';
-import type AllInOneToolkitPlugin from '../main';
-import { isEJSTemplateFile } from './ejs-autocomplete';
+import type AllInOneToolkitPlugin from '../../main';
+import { isEJSTemplateFile } from './autocomplete';
 
 declare global {
   interface Window {

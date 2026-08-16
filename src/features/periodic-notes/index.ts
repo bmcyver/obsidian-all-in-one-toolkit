@@ -1,19 +1,19 @@
 import { Notice, Setting } from 'obsidian';
-import { ensureDirectoryExists, isValidPath } from '../utils/file';
-import { BaseManager } from './base';
-import { FolderSuggest } from '../ui/folder-suggest';
-import { DEFAULT_SETTINGS } from '../settings';
+import { ensureDirectoryExists, isValidPath } from '../../shared/utils/file';
+import { Feature } from '../../shared/types';
+import { FolderSuggest } from '../../shared/ui/folder-suggest';
+import { DEFAULT_SETTINGS } from '../../settings';
 import {
   createToggleSection,
   addErrorContainer,
   showError,
   clearError,
-} from '../utils/ui';
+} from '../../shared/ui/settings-helpers';
 
 type NoteType = 'weekly' | 'monthly' | 'yearly';
 
-export class PeriodicNotesManager extends BaseManager {
-  protected isEnabled(): boolean {
+export class PeriodicNotesFeature extends Feature {
+  private isEnabled(): boolean {
     return this.plugin.settings.periodicNotesEnabled;
   }
 

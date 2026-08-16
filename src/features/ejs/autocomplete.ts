@@ -1,4 +1,4 @@
-import { editorInfoField, moment, normalizePath } from 'obsidian';
+import { editorInfoField, normalizePath } from 'obsidian';
 import type { Extension, EditorState } from '@codemirror/state';
 import {
   autocompletion,
@@ -6,18 +6,18 @@ import {
   type CompletionContext,
   type CompletionResult,
 } from '@codemirror/autocomplete';
-import type AllInOneToolkitPlugin from '../main';
+import type AllInOneToolkitPlugin from '../../main';
 
 /**
  * Checks whether the current editor state is editing a markdown file (*.md)
- * inside the configured EJS templates folder.
+ * inside the configured EJS templates folder using Obsidian's TFile parent hierarchy.
  */
 export function isEJSTemplateFile(
   state: EditorState,
   templatesFolder: string,
 ): boolean {
   const file = state.field(editorInfoField, false)?.file;
-  if (!file || file.extension.toLowerCase() !== 'md') {
+  if (!file || file.extension !== 'md') {
     return false;
   }
 
@@ -30,10 +30,15 @@ export function isEJSTemplateFile(
     return true;
   }
 
-  const normalizedFilePath = normalizePath(file.path).toLowerCase();
-  const normalizedFolderPath = normalizedFolder.toLowerCase();
+  let currentParent = file.parent;
+  while (currentParent) {
+    if (currentParent.path === normalizedFolder) {
+      return true;
+    }
+    currentParent = currentParent.parent;
+  }
 
-  return normalizedFilePath.startsWith(`${normalizedFolderPath}/`);
+  return false;
 }
 
 /**
@@ -73,80 +78,65 @@ const CUSTOM_EJS_GLOBALS: Completion[] = [
     label: 'moment',
     type: 'function',
     detail: 'Moment',
-    info: 'Moment.js 인스턴스 및 날짜/시간 포맷팅 유틸리티',
+    info: 'Moment.js 날짜/시간 포맷팅 유틸리티',
   },
   {
-    label: 'prompt',
-    type: 'function',
-    detail: '(msg: string, default?: string) => Promise<string>',
-    info: '사용자 텍스트 입력 대화상자를 열고 입력값을 반환합니다.',
-  },
-  {
-    label: 'select',
-    type: 'function',
-    detail:
-      '(msg: string, items: string[], values?: string[]) => Promise<string>',
-    info: '사용자 선택(Fuzzy Suggest) 대화상자를 열고 선택된 값을 반환합니다.',
+    label: 'ejs',
+    type: 'variable',
+    detail: 'EJSToolkitHelpers',
+    info: 'EJS 플러그인 헬퍼 네임스페이스 (ejs.prompt, ejs.select 등)',
   },
 ];
 
 /**
- * Dynamically inspects an object and its prototype chain to extract all properties and methods.
+ * Dynamically inspects an object and its prototype chain to extract all accessible properties and methods safely.
  */
 function extractDynamicProperties(target: unknown): Completion[] {
   if (target === null || target === undefined) {
     return [];
   }
 
-  const propSet = new Set<string>();
+  const propMap = new Map<string, 'property' | 'function'>();
   let current: unknown = target;
 
-  // Traverse prototype chain up to 4 levels
+  // Traverse prototype chain up to Object.prototype
   for (
     let depth = 0;
     depth < 4 && current && current !== Object.prototype;
     depth++
   ) {
-    const keys =
-      typeof current === 'object' || typeof current === 'function'
-        ? Object.getOwnPropertyNames(current)
-        : [];
-
-    for (const key of keys) {
+    const descriptors = Object.getOwnPropertyDescriptors(current);
+    for (const [key, desc] of Object.entries(descriptors)) {
       if (
-        key !== 'constructor' &&
-        !key.startsWith('__') &&
-        !key.startsWith('_')
+        key === 'constructor' ||
+        key.startsWith('__') ||
+        key.startsWith('_')
       ) {
-        propSet.add(key);
+        continue;
+      }
+
+      if (!propMap.has(key)) {
+        if (typeof desc.value === 'function') {
+          propMap.set(key, 'function');
+        } else {
+          propMap.set(key, 'property');
+        }
       }
     }
 
     current = Object.getPrototypeOf(current);
   }
 
-  return Array.from(propSet)
-    .sort()
-    .map((key) => {
-      let type: 'property' | 'function' = 'property';
-      try {
-        const val = (target as Record<string, unknown>)[key];
-        if (typeof val === 'function') {
-          type = 'function';
-        }
-      } catch {
-        // Ignore getter evaluation exceptions
-      }
-
-      return {
-        label: key,
-        type,
-      };
-    });
+  return Array.from(propMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, type]) => ({
+      label: key,
+      type,
+    }));
 }
 
 /**
- * Resolves dot-separated access path (e.g. ['app', 'vault']) to the runtime instance.
+ * Resolves dot-separated member access path (e.g. ['app', 'vault']) to the runtime instance.
  */
 function resolveRuntimeObject(
   segments: string[],
@@ -165,13 +155,22 @@ function resolveRuntimeObject(
   } else if (rootName === 'file') {
     current = currentFile || plugin.app.workspace.getActiveFile();
   } else if (rootName === 'moment') {
-    current = moment;
+    current = window.moment;
+  } else if (rootName === 'ejs') {
+    current = {
+      prompt: (msg: string, defaultValue?: string) => Promise.resolve(''),
+      select: (msg: string, items: string[], values?: string[]) =>
+        Promise.resolve(''),
+    };
   } else {
     return null;
   }
 
   for (let i = 1; i < segments.length; i++) {
-    if (!current || typeof current !== 'object') {
+    if (
+      !current ||
+      (typeof current !== 'object' && typeof current !== 'function')
+    ) {
       return null;
     }
     const prop = segments[i];

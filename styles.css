@@ -1,12 +1,25 @@
-/* ==========================================================================
-   1. Folder Note Manager Styles
-   ========================================================================== */
-
-.nav-files-container .fn-hidden-file {
-  display: none !important;
+:root {
+  --tk-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --tk-dur-fast: 120ms;
+  --tk-dur-normal: 180ms;
+  --tk-transition-bg: background-color var(--tk-dur-fast) var(--tk-ease-out);
+  --tk-transition-border: border-color var(--tk-dur-fast) var(--tk-ease-out);
+  --tk-transition-color: color var(--tk-dur-fast) var(--tk-ease-out);
+  --tk-transition-all-states:
+    background-color var(--tk-dur-fast) var(--tk-ease-out),
+    color var(--tk-dur-fast) var(--tk-ease-out),
+    border-color var(--tk-dur-fast) var(--tk-ease-out);
 }
 
-/* Default styling: color applied to parent so it can be easily overridden by custom CSS */
+/* ==========================================================================
+   1. Folder Note Feature Styles
+   ========================================================================== */
+
+.nav-files-container .tree-item.fn-hidden-file,
+.nav-files-container .fn-hidden-file {
+  display: none;
+}
+
 .nav-folder-title.has-folder-note {
   color: var(--interactive-accent);
 }
@@ -14,7 +27,7 @@
 .nav-folder-title.has-folder-note .nav-folder-title-content {
   text-decoration: underline;
   text-decoration-color: currentColor;
-  text-underline-offset: 3px;
+  text-underline-offset: var(--size-2-1, 2px);
 }
 
 /* ==========================================================================
@@ -22,19 +35,25 @@
    ========================================================================== */
 
 .tk-trash-modal {
-  --modal-width: 540px;
+  --modal-width: min(540px, calc(100% - var(--size-4-8, 32px)));
 }
 
 .tk-trash-action-bar {
   display: flex;
-  gap: var(--size-4-3);
-  margin-bottom: var(--size-4-4);
   align-items: center;
   flex-wrap: wrap;
+  gap: var(--size-4-3);
+  margin-bottom: var(--size-4-4);
 }
 
 .tk-trash-action-bar .search-input-container {
   flex-grow: 1;
+}
+
+.tk-trash-stats-bar {
+  margin-bottom: var(--size-4-3);
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
 }
 
 .tk-trash-list {
@@ -45,8 +64,8 @@
   background-color: var(--background-primary);
 }
 
-.tk-trash-loading,
-.tk-trash-empty-msg {
+.tk-trash-empty-msg,
+.tk-trash-error {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -56,17 +75,7 @@
 }
 
 .tk-trash-error {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: var(--size-4-8);
   color: var(--text-error);
-}
-
-.tk-trash-empty-text {
-  font-size: var(--font-ui-medium);
-  font-weight: 500;
 }
 
 .tk-trash-item {
@@ -75,7 +84,7 @@
   align-items: center;
   padding: var(--size-4-2) var(--size-4-3);
   border-bottom: 1px solid var(--background-modifier-border);
-  transition: background-color 0.15s ease;
+  transition: var(--tk-transition-bg);
 }
 
 .tk-trash-item:hover {
@@ -96,42 +105,19 @@
   min-width: 0;
 }
 
+.tk-trash-item-name,
+.tk-trash-item-path {
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
 .tk-trash-item-name {
   font-weight: 600;
   font-size: var(--font-ui-medium);
   color: var(--text-normal);
   line-height: 1.4;
   margin: 0;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  overflow: hidden;
-}
-
-.tk-trash-item-path {
-  font-size: var(--font-ui-smaller);
-  color: var(--text-muted);
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  overflow: hidden;
-  flex-shrink: 1;
-  min-width: 0;
-}
-
-.tk-trash-item-controls {
-  display: flex;
-  gap: var(--size-4-1);
-  flex-shrink: 0;
-}
-
-.tk-trash-stats-bar {
-  margin-bottom: var(--size-4-3);
-  font-size: var(--font-ui-small);
-  color: var(--text-muted);
-}
-
-.tk-trash-stats-text {
-  font-size: var(--font-ui-small);
-  color: var(--text-muted);
 }
 
 .tk-trash-item-meta {
@@ -144,6 +130,13 @@
   min-width: 0;
 }
 
+.tk-trash-item-path {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  flex-shrink: 1;
+  min-width: 0;
+}
+
 .tk-trash-item-divider {
   flex-shrink: 0;
 }
@@ -152,6 +145,12 @@
   flex-shrink: 0;
   font-weight: 500;
   color: var(--text-muted);
+}
+
+.tk-trash-item-controls {
+  display: flex;
+  gap: var(--size-4-1);
+  flex-shrink: 0;
 }
 
 .tk-trash-pagination {
@@ -185,6 +184,49 @@
   border: 1px solid var(--background-modifier-border);
   border-radius: var(--radius-m);
   padding: var(--size-4-2) var(--size-4-3);
+  transition:
+    background-color var(--tk-dur-fast) var(--tk-ease-out),
+    border-color var(--tk-dur-fast) var(--tk-ease-out),
+    opacity var(--tk-dur-fast) var(--tk-ease-out);
+}
+
+.ejs-rule-item.is-dragging {
+  opacity: 0.4;
+  border-style: dashed;
+  background-color: var(--background-modifier-hover);
+}
+
+.ejs-rule-item.is-drag-over-top {
+  border-top: 2px solid var(--interactive-accent);
+}
+
+.ejs-rule-item.is-drag-over-bottom {
+  border-bottom: 2px solid var(--interactive-accent);
+}
+
+.ejs-rule-drag-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  cursor: grab;
+  padding: var(--size-2-1);
+  border-radius: var(--radius-s);
+  flex-shrink: 0;
+  transition: color var(--tk-dur-fast) var(--tk-ease-out);
+}
+
+.ejs-rule-drag-handle:hover {
+  color: var(--text-normal);
+}
+
+.ejs-rule-drag-handle:active {
+  cursor: grabbing;
+}
+
+.ejs-rule-drag-handle svg {
+  width: var(--size-4-4, 16px);
+  height: var(--size-4-4, 16px);
 }
 
 .ejs-rule-main-row {
@@ -193,32 +235,27 @@
   align-items: center;
   width: 100%;
   gap: var(--size-4-2);
-  flex-wrap: wrap;
+  min-width: 0;
 }
 
-.ejs-rule-error-msg {
-  color: var(--text-error);
-  font-size: var(--font-ui-smaller);
-  width: 100% !important;
-  flex-basis: 100%;
-  margin-top: var(--size-4-2);
-  margin-bottom: var(--size-2-1);
-  padding-left: var(--size-4-6);
+.ejs-rule-pattern-input,
+.ejs-rule-path-input {
+  min-width: 0;
 }
 
 .ejs-rule-pattern-input {
-  flex: 1 1 140px;
-  min-width: 0;
-}
-
-.ejs-rule-pattern-input.is-invalid {
-  border-color: var(--text-error) !important;
-  box-shadow: 0 0 0 1px var(--text-error) !important;
+  flex: 1 1 38%;
+  min-width: 120px;
 }
 
 .ejs-rule-path-input {
-  flex: 1 1 180px;
-  min-width: 0;
+  flex: 1 1 48%;
+  min-width: 140px;
+}
+
+.ejs-rule-item .ejs-rule-pattern-input.is-invalid {
+  border-color: var(--text-error);
+  box-shadow: 0 0 0 1px var(--text-error);
 }
 
 .ejs-rule-status-area {
@@ -232,8 +269,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: var(--size-4-6, 24px);
+  height: var(--size-4-6, 24px);
   flex-shrink: 0;
 }
 
@@ -246,7 +283,7 @@
 }
 
 .theme-light .ejs-rule-status-icon.pending {
-  color: var(--text-warning-hover, #b45309);
+  color: var(--text-warning-hover, var(--text-warning));
 }
 
 .ejs-rule-status-icon.missing {
@@ -254,8 +291,8 @@
 }
 
 .ejs-rule-status-icon svg {
-  width: 18px;
-  height: 18px;
+  width: var(--size-4-4, 18px);
+  height: var(--size-4-4, 18px);
 }
 
 .ejs-rule-controls {
@@ -264,6 +301,16 @@
   gap: var(--size-2-1);
   flex-shrink: 0;
   margin-left: auto;
+}
+
+.ejs-rule-item .ejs-rule-error-msg {
+  color: var(--text-error);
+  font-size: var(--font-ui-smaller);
+  width: 100%;
+  flex-basis: 100%;
+  margin-top: var(--size-4-2);
+  margin-bottom: var(--size-2-1);
+  padding-left: var(--size-4-6);
 }
 
 .ejs-security-info {
@@ -292,18 +339,14 @@
   word-break: break-all;
 }
 
-.ejs-rules-header {
-  border-top: 1px solid var(--background-modifier-border);
-  padding-top: var(--size-4-4);
-}
-
 /* ==========================================================================
-   4. Markdownlint Manager & Result Modal Styles
+   4. Markdownlint Feature & Result Modal Styles
    ========================================================================== */
 
 .tk-markdownlint-rule-link {
   color: var(--text-normal);
   text-decoration: none;
+  transition: var(--tk-transition-color);
 }
 
 .tk-markdownlint-rule-link:hover {
@@ -329,10 +372,11 @@
   margin-bottom: var(--size-4-3);
 }
 
-.tk-markdownlint-suboption-item {
-  border-top: none !important;
-  padding-top: var(--size-4-1) !important;
-  padding-bottom: var(--size-4-1) !important;
+.tk-markdownlint-suboptions-container
+  .setting-item.tk-markdownlint-suboption-item {
+  border-top: none;
+  padding-top: var(--size-4-1);
+  padding-bottom: var(--size-4-1);
 }
 
 .tk-markdownlint-suboption-item .setting-item-name {
@@ -346,101 +390,12 @@
   color: var(--text-muted);
 }
 
-/* ==========================================================================
-   Foldable Details Section Styles (Unified for EJS & Markdownlint)
-   ========================================================================== */
-
-.tk-fold-details {
-  border: 1px solid var(--background-modifier-border);
-  border-radius: var(--radius-m);
-  margin-top: var(--size-4-3);
-  margin-bottom: var(--size-4-3);
-  background-color: var(--background-primary-alt);
-  overflow: hidden;
-  transition:
-    border-color 0.15s ease,
-    box-shadow 0.15s ease;
-}
-
-.tk-fold-details[open] {
-  border-color: var(--interactive-accent);
-}
-
-.tk-fold-summary {
-  display: flex;
-  align-items: center;
-  gap: var(--size-4-2);
-  font-weight: 600;
-  font-size: var(--font-ui-small);
-  cursor: pointer;
-  padding: var(--size-4-2) var(--size-4-3);
-  user-select: none;
-  color: var(--text-normal);
-  background-color: var(--background-secondary-alt);
-  list-style: none;
-  transition:
-    background-color 0.15s ease,
-    color 0.15s ease;
-}
-
-.tk-fold-summary::-webkit-details-marker {
-  display: none;
-}
-
-.tk-fold-summary::before {
-  content: '';
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  border-right: 2px solid var(--text-muted);
-  border-bottom: 2px solid var(--text-muted);
-  transform: rotate(-45deg);
-  transition:
-    transform 0.2s ease,
-    border-color 0.15s ease;
-  margin-right: var(--size-4-1);
-  flex-shrink: 0;
-}
-
-.tk-fold-details[open] > .tk-fold-summary::before {
-  transform: rotate(45deg);
-  border-color: var(--interactive-accent);
-}
-
-.tk-fold-summary:hover {
-  background-color: var(--background-modifier-hover);
-  color: var(--interactive-accent);
-}
-
-.tk-fold-summary:hover::before {
-  border-color: var(--interactive-accent);
-}
-
-.tk-fold-title {
-  flex-grow: 1;
-}
-
-.tk-fold-badge {
-  font-size: var(--font-ui-smaller);
-  font-weight: 500;
-  color: var(--text-muted);
-  background: none;
-  border: none;
-  padding: 0;
-}
-
-.tk-fold-content {
-  padding: var(--size-4-3);
-  border-top: 1px solid var(--background-modifier-border);
-  background-color: var(--background-primary-alt);
-}
-
 .tk-markdownlint-rule-item-container {
   margin-bottom: var(--size-4-1);
 }
 
 .tk-markdownlint-result-modal {
-  --modal-width: 680px;
+  --modal-width: min(680px, calc(100% - var(--size-4-8, 32px)));
 }
 
 .tk-markdownlint-stats-bar {
@@ -449,17 +404,18 @@
   margin-bottom: var(--size-4-3);
 }
 
-.tk-markdownlint-stats-text {
+.tk-markdownlint-stats-text,
+.tk-markdownlint-rule-name {
   font-size: var(--font-ui-small);
   color: var(--text-muted);
 }
 
 .tk-markdownlint-modal-action-bar {
   display: flex;
-  gap: var(--size-4-2);
-  margin-bottom: var(--size-4-3);
   align-items: center;
   flex-wrap: wrap;
+  gap: var(--size-4-2);
+  margin-bottom: var(--size-4-3);
 }
 
 .tk-markdownlint-modal-action-bar .search-input-container {
@@ -489,23 +445,19 @@
   border-radius: var(--radius-m);
   padding: var(--size-4-2) var(--size-4-3);
   background-color: var(--background-primary-alt);
-  transition: background-color 0.15s ease;
+  transition: var(--tk-transition-bg);
 }
 
 .tk-markdownlint-result-item:hover {
   background-color: var(--background-modifier-hover);
 }
 
-.tk-markdownlint-result-item.is-fixable {
-  border-left: 3px solid var(--text-success);
-}
-
 .tk-markdownlint-result-item-header {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--size-4-2);
   margin-bottom: var(--size-4-1);
-  flex-wrap: wrap;
 }
 
 .tk-markdownlint-line-btn {
@@ -521,6 +473,7 @@
   background-color: var(--interactive-normal);
   color: var(--text-normal);
   border: 1px solid var(--background-modifier-border);
+  transition: var(--tk-transition-all-states);
 }
 
 .tk-markdownlint-line-btn:hover {
@@ -533,11 +486,7 @@
   font-size: var(--font-ui-small);
   color: var(--interactive-accent);
   text-decoration: none;
-}
-
-.tk-markdownlint-rule-name {
-  font-size: var(--font-ui-small);
-  color: var(--text-muted);
+  transition: var(--tk-transition-color);
 }
 
 .tk-markdownlint-rule-badge:hover {
@@ -545,14 +494,32 @@
 }
 
 .tk-markdownlint-fixable-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--size-4-1);
   font-size: var(--font-ui-smaller);
+  font-weight: 500;
+  line-height: 1.2;
   padding: var(--size-2-1) var(--size-4-2);
   border-radius: var(--radius-s);
-  background-color: var(--background-secondary-alt);
+  background-color: var(--background-secondary);
   color: var(--text-success);
-  border: 1px solid var(--text-success);
-  font-weight: 600;
+  border: 1px solid var(--background-modifier-border);
   margin-left: auto;
+  user-select: none;
+}
+
+.tk-markdownlint-fixable-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-success);
+}
+
+.tk-markdownlint-fixable-icon svg {
+  width: var(--size-4-3, 12px);
+  height: var(--size-4-3, 12px);
+  stroke-width: 2px;
 }
 
 .tk-markdownlint-result-item-body {
@@ -582,15 +549,105 @@
 }
 
 /* ==========================================================================
-   5. Shared UI & Utility Styles
+   5. Foldable Details Section Styles (Unified for EJS & Markdownlint)
+   ========================================================================== */
+
+.tk-fold-details {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  margin-top: var(--size-4-3);
+  margin-bottom: var(--size-4-3);
+  background-color: var(--background-primary-alt);
+  overflow: hidden;
+  transition: border-color var(--tk-dur-fast) var(--tk-ease-out);
+}
+
+.tk-fold-details[open] {
+  border-color: var(--background-modifier-border-hover);
+}
+
+.tk-fold-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-2);
+  font-weight: 600;
+  font-size: var(--font-ui-small);
+  cursor: pointer;
+  padding: var(--size-4-2) var(--size-4-3);
+  user-select: none;
+  color: var(--text-normal);
+  background-color: var(--background-secondary-alt);
+  list-style: none;
+  transition:
+    background-color var(--tk-dur-fast) var(--tk-ease-out),
+    color var(--tk-dur-fast) var(--tk-ease-out);
+}
+
+.tk-fold-summary::-webkit-details-marker {
+  display: none;
+}
+
+.tk-fold-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  transition:
+    transform var(--tk-dur-normal) var(--tk-ease-out),
+    color var(--tk-dur-fast) var(--tk-ease-out);
+  flex-shrink: 0;
+}
+
+.tk-fold-icon svg {
+  width: var(--size-4-4, 16px);
+  height: var(--size-4-4, 16px);
+}
+
+.tk-fold-details[open] > .tk-fold-summary .tk-fold-icon {
+  transform: rotate(90deg);
+  color: var(--text-normal);
+}
+
+.tk-fold-summary:hover {
+  background-color: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.tk-fold-summary:hover .tk-fold-icon {
+  color: var(--text-normal);
+}
+
+.tk-fold-title {
+  flex-grow: 1;
+}
+
+.tk-fold-badge {
+  font-size: var(--font-ui-smaller);
+  font-weight: 500;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  background-color: var(--background-modifier-hover);
+  border-radius: var(--radius-s);
+  padding: var(--size-2-1) var(--size-4-2);
+  line-height: 1;
+}
+
+.tk-fold-content {
+  padding: var(--size-4-3);
+  border-top: 1px solid var(--background-modifier-border);
+  background-color: var(--background-primary-alt);
+}
+
+/* ==========================================================================
+   6. Shared UI, Setting Errors & Prompt Modal Styles
    ========================================================================== */
 
 .is-hidden {
-  display: none !important;
+  display: none;
 }
 
 .setting-item.has-error-container {
-  flex-wrap: wrap !important;
+  flex-wrap: wrap;
 }
 
 .setting-item.has-error-container > .setting-item-info {
@@ -602,80 +659,69 @@
   flex-shrink: 0;
 }
 
-.setting-item-error {
+.setting-item.has-error-container > .setting-item-error {
   color: var(--text-error);
   font-size: var(--font-ui-smaller);
   margin-top: var(--size-4-1);
-  width: 100% !important;
+  width: 100%;
   flex-basis: 100%;
   order: 99;
   text-align: left;
 }
-
-/* ==========================================================================
-   6. Prompt Modal Styles
-   ========================================================================== */
 
 .tk-prompt-input {
   width: 100%;
 }
 
 /* ==========================================================================
-   7. EJS Editor Styles (Integrated with User Theme)
+   7. EJS Editor Syntax & Autocomplete Styles
    ========================================================================== */
 
-/* Multi-line EJS codeblock lines (rendered seamlessly like ``` codeblocks) */
-.cm-line.cm-ejs-codeblock-line {
-  background-color: var(--code-background, var(--background-primary-alt));
-  font-family: var(--font-monospace);
-  font-size: var(--code-size, 0.9em);
-}
-
-/* Single-line inline EJS tags (rendered like inline `code`) */
+.cm-line.cm-ejs-codeblock-line,
 .cm-line span.cm-ejs-inline-tag {
   background-color: var(--code-background, var(--background-primary-alt));
   font-family: var(--font-monospace);
   font-size: var(--code-size, 0.9em);
-  border-radius: var(--radius-s, 4px);
-  padding: 0 4px;
 }
 
-/* EJS Delimiter tags */
+.cm-line span.cm-ejs-inline-tag {
+  border-radius: var(--radius-s);
+  padding: 0 var(--size-4-1);
+}
+
 .cm-line span.cm-ejs-delimiter {
   color: var(--text-accent);
   font-weight: 700;
   font-family: var(--font-monospace);
 }
 
-/* ==========================================================================
-   8. Autocomplete Icon Styles
-   ========================================================================== */
-
 .cm-tooltip-autocomplete ul li .cm-completionIcon {
-  margin-right: 6px;
+  margin-right: var(--size-4-1);
   opacity: 0.8;
   font-family: var(--font-monospace);
   font-size: 0.9em;
 }
 
+.cm-tooltip-autocomplete ul li .cm-completionIcon-property:after,
+.cm-tooltip-autocomplete ul li .cm-completionIcon-variable:after,
+.cm-tooltip-autocomplete ul li .cm-completionIcon-function:after,
+.cm-tooltip-autocomplete ul li .cm-completionIcon-method:after {
+  font-style: normal;
+  font-weight: 600;
+}
+
 .cm-tooltip-autocomplete ul li .cm-completionIcon-property:after {
   content: '𝒑';
-  font-style: italic;
-  font-weight: 600;
   color: var(--color-cyan, var(--text-accent));
 }
 
 .cm-tooltip-autocomplete ul li .cm-completionIcon-variable:after {
   content: '𝒗';
-  font-style: italic;
-  font-weight: 600;
   color: var(--color-orange, var(--text-accent));
 }
 
 .cm-tooltip-autocomplete ul li .cm-completionIcon-function:after,
 .cm-tooltip-autocomplete ul li .cm-completionIcon-method:after {
   content: 'ƒ';
-  font-style: italic;
-  font-weight: 600;
   color: var(--color-blue, var(--text-accent));
 }

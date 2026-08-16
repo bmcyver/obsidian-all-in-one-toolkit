@@ -4,37 +4,38 @@ import {
   MarkdownView,
   TFile,
   ConfirmationModal,
+  normalizePath,
 } from 'obsidian';
 import { lint } from 'markdownlint/sync';
 import { applyFixes, type LintError } from 'markdownlint';
-import { BaseManager } from './base';
+import { Feature } from '../../shared/types';
 import {
   MARKDOWNLINT_ALL_RULES,
+  MARKDOWNLINT_RULES_MAP,
   DEFAULT_MARKDOWNLINT_RULES,
   getRuleDocUrl,
   type MarkdownlintRuleMetadata,
-} from '../constants/markdownlint-rules';
+} from './rules';
 import {
   createToggleSection,
   addErrorContainer,
   showError,
   clearError,
   createFoldableSection,
-} from '../utils/ui';
-import { MarkdownlintResultModal } from '../ui/markdownlint-result-modal';
-import { FolderSuggest } from '../ui/folder-suggest';
-import { isValidPath } from '../utils/file';
+} from '../../shared/ui/settings-helpers';
+import { MarkdownlintResultModal } from './result-modal';
+import { FolderSuggest } from '../../shared/ui/folder-suggest';
+import { isValidPath } from '../../shared/utils/file';
 
-export class MarkdownlintManager extends BaseManager {
+export class MarkdownlintFeature extends Feature {
   private managerContainerEl: HTMLElement | null = null;
   private cachedConfig: Record<string, unknown> | null = null;
 
-  protected isEnabled(): boolean {
+  private isEnabled(): boolean {
     return this.plugin.settings.markdownlintEnabled;
   }
 
   override onSettingsUpdate(): void {
-    super.onSettingsUpdate();
     this.invalidateCache();
   }
 
@@ -80,7 +81,7 @@ export class MarkdownlintManager extends BaseManager {
           const activeView =
             this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
           if (activeView) {
-            this.fixActiveNote(false);
+            this.fixActiveNote(false, true);
           }
         }
       },
@@ -100,7 +101,7 @@ export class MarkdownlintManager extends BaseManager {
     for (const [ruleId, val] of Object.entries(userRules)) {
       if (val && typeof val === 'object' && !Array.isArray(val)) {
         const ruleObj: Record<string, unknown> = { ...val };
-        const ruleMeta = MARKDOWNLINT_ALL_RULES.find((r) => r.id === ruleId);
+        const ruleMeta = MARKDOWNLINT_RULES_MAP.get(ruleId);
         if (ruleMeta?.subOptions) {
           for (const sub of ruleMeta.subOptions) {
             const rawVal = ruleObj[sub.key];
@@ -129,9 +130,9 @@ export class MarkdownlintManager extends BaseManager {
 
     const filePath = file.path;
     for (const folder of ignoredFolders) {
-      const trimmed = folder.trim().replace(/^\/+|\/+$/g, '');
-      if (!trimmed) continue;
-      if (filePath === trimmed || filePath.startsWith(trimmed + '/')) {
+      const normalized = normalizePath(folder.trim());
+      if (!normalized || normalized === '/') continue;
+      if (filePath === normalized || filePath.startsWith(normalized + '/')) {
         return true;
       }
     }
@@ -144,12 +145,6 @@ export class MarkdownlintManager extends BaseManager {
     const editor = activeView?.editor;
     if (!editor) {
       new Notice('활성 에디터가 없습니다.');
-      return;
-    }
-
-    const activeFile = this.plugin.app.workspace.getActiveFile();
-    if (this.isFileIgnored(activeFile)) {
-      new Notice('검사 제외 대상 폴더의 노트입니다.');
       return;
     }
 
@@ -170,12 +165,12 @@ export class MarkdownlintManager extends BaseManager {
     } else {
       new Notice(`${issues.length}개 위반 발견 (${durationMs}ms)`);
       new MarkdownlintResultModal(this.plugin.app, editor, issues, () =>
-        this.fixActiveNote(false),
+        this.fixActiveNote(false, false),
       ).open();
     }
   }
 
-  private fixActiveNote(showNotice = true): void {
+  private fixActiveNote(showNotice = true, isAuto = false): void {
     const activeView =
       this.plugin.app.workspace.getActiveViewOfType(MarkdownView);
     const editor = activeView?.editor;
@@ -185,8 +180,7 @@ export class MarkdownlintManager extends BaseManager {
     }
 
     const activeFile = this.plugin.app.workspace.getActiveFile();
-    if (this.isFileIgnored(activeFile)) {
-      if (showNotice) new Notice('수정 제외 대상 폴더의 노트입니다.');
+    if (isAuto && this.isFileIgnored(activeFile)) {
       return;
     }
 
@@ -269,7 +263,7 @@ export class MarkdownlintManager extends BaseManager {
     const ignoredSetting = new Setting(detailEl)
       .setName('제외할 폴더')
       .setDesc(
-        '검사 및 자동 수정을 제외할 폴더 경로를 쉼표(,)로 구분하여 입력합니다.',
+        '저장 시 자동 수정을 제외할 폴더 경로를 쉼표(,)로 구분하여 입력합니다 (수동 검사 및 수정은 허용됨).',
       );
 
     const errorEl = addErrorContainer(ignoredSetting);
@@ -399,7 +393,7 @@ export class MarkdownlintManager extends BaseManager {
     });
 
     const descText = !rule.defaultEnabled
-      ? `${rule.desc} (호환성 이슈로 기본 비활성화됨)`
+      ? `${rule.desc} (기본 비활성화됨)`
       : rule.desc;
     setting.setDesc(descText);
 
@@ -455,6 +449,14 @@ export class MarkdownlintManager extends BaseManager {
       return defObj;
     };
 
+    const saveSubOption = async (key: string, value: unknown) => {
+      const currentObj = getRuleObj();
+      currentObj[key] = value;
+      this.plugin.settings.markdownlintRules[rule.id] = currentObj;
+      this.invalidateCache();
+      await this.plugin.saveSettings();
+    };
+
     for (const sub of rule.subOptions) {
       const subSetting = new Setting(containerEl);
       subSetting.settingEl.addClass('tk-markdownlint-suboption-item');
@@ -472,11 +474,7 @@ export class MarkdownlintManager extends BaseManager {
             dropdown.addOption(optKey, optLabel);
           }
           dropdown.setValue(String(val)).onChange(async (newVal) => {
-            const currentObj = getRuleObj();
-            currentObj[sub.key] = newVal;
-            this.plugin.settings.markdownlintRules[rule.id] = currentObj;
-            this.invalidateCache();
-            await this.plugin.saveSettings();
+            await saveSubOption(sub.key, newVal);
           });
         });
       } else if (sub.type === 'number') {
@@ -484,32 +482,20 @@ export class MarkdownlintManager extends BaseManager {
           text.setValue(String(val)).onChange(async (newVal) => {
             const num = Number(newVal);
             if (!isNaN(num)) {
-              const currentObj = getRuleObj();
-              currentObj[sub.key] = num;
-              this.plugin.settings.markdownlintRules[rule.id] = currentObj;
-              this.invalidateCache();
-              await this.plugin.saveSettings();
+              await saveSubOption(sub.key, num);
             }
           }),
         );
       } else if (sub.type === 'boolean') {
         subSetting.addToggle((toggle) =>
           toggle.setValue(Boolean(val)).onChange(async (newVal) => {
-            const currentObj = getRuleObj();
-            currentObj[sub.key] = newVal;
-            this.plugin.settings.markdownlintRules[rule.id] = currentObj;
-            this.invalidateCache();
-            await this.plugin.saveSettings();
+            await saveSubOption(sub.key, newVal);
           }),
         );
       } else if (sub.type === 'string') {
         subSetting.addText((text) =>
           text.setValue(String(val)).onChange(async (newVal) => {
-            const currentObj = getRuleObj();
-            currentObj[sub.key] = newVal;
-            this.plugin.settings.markdownlintRules[rule.id] = currentObj;
-            this.invalidateCache();
-            await this.plugin.saveSettings();
+            await saveSubOption(sub.key, newVal);
           }),
         );
       }

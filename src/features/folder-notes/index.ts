@@ -7,15 +7,14 @@ import {
   Setting,
 } from 'obsidian';
 import type { WorkspaceWindow } from 'obsidian';
-import { splitFileName } from '../utils/file';
-import { BaseManager } from './base';
-import { createToggleSection } from '../utils/ui';
-import { EJSPromptModal } from '../ui/prompt-modal';
+import { Feature } from '../../shared/types';
+import { createToggleSection } from '../../shared/ui/settings-helpers';
+import { PromptModal } from '../../shared/ui/prompt-modal';
 
 export const SUPPORTED_EXTENSIONS = ['base', 'md', 'canvas'] as const;
 const NAV_FILES_CONTAINER = '.nav-files-container';
 
-export class FolderNoteManager extends BaseManager {
+export class FolderNoteFeature extends Feature {
   private fileExplorerLeaves: WorkspaceLeaf[] = [];
   private observers: MutationObserver[] = [];
   private frameId: number | null = null;
@@ -23,12 +22,11 @@ export class FolderNoteManager extends BaseManager {
   private windows: Set<Window> = new Set();
   private folderNotePaths: Set<string> = new Set();
 
-  protected isEnabled(): boolean {
+  private isEnabled(): boolean {
     return this.plugin.settings.folderNoteEnabled;
   }
 
-  onSettingsUpdate() {
-    super.onSettingsUpdate();
+  override onSettingsUpdate() {
     if (this.isEnabled()) {
       this.rebuildFolderNotePathsCache();
     }
@@ -116,9 +114,7 @@ export class FolderNoteManager extends BaseManager {
         if (!this.isEnabled()) return;
         if (file instanceof TFolder) {
           const oldNormalized = this.normalizeFolderPath(oldPath);
-          const lastSlash = oldNormalized.lastIndexOf('/');
-          const oldFolderName =
-            lastSlash >= 0 ? oldNormalized.slice(lastSlash + 1) : oldNormalized;
+          const oldFolderName = this.getFolderName(oldNormalized);
           const newFolderName = file.name;
 
           if (
@@ -234,6 +230,13 @@ export class FolderNoteManager extends BaseManager {
   private normalizeFolderPath(path: string): string {
     const normalized = normalizePath(path);
     return normalized === '/' ? '' : normalized;
+  }
+
+  private getFolderName(normalizedPath: string): string {
+    const lastSlash = normalizedPath.lastIndexOf('/');
+    return lastSlash >= 0
+      ? normalizedPath.slice(lastSlash + 1)
+      : normalizedPath;
   }
 
   private clearFolderStyles() {
@@ -371,14 +374,7 @@ export class FolderNoteManager extends BaseManager {
         const path = titleEl.getAttribute('data-path');
         if (!path) continue;
 
-        const isNote = this.folderNotePaths.has(path);
-        const hasClass = el.classList.contains('fn-hidden-file');
-
-        if (isNote && !hasClass) {
-          el.classList.add('fn-hidden-file');
-        } else if (!isNote && hasClass) {
-          el.classList.remove('fn-hidden-file');
-        }
+        el.classList.toggle('fn-hidden-file', this.folderNotePaths.has(path));
       }
 
       const folderElements = container.querySelectorAll('.nav-folder');
@@ -390,11 +386,7 @@ export class FolderNoteManager extends BaseManager {
         const path = titleEl.getAttribute('data-path');
         if (path === null) continue;
         const normalizedPath = this.normalizeFolderPath(path);
-        const lastSlashIndex = normalizedPath.lastIndexOf('/');
-        const folderName =
-          lastSlashIndex >= 0
-            ? normalizedPath.slice(lastSlashIndex + 1)
-            : normalizedPath;
+        const folderName = this.getFolderName(normalizedPath);
 
         let hasNote = false;
         if (normalizedPath && folderName && folderName !== '/') {
@@ -407,41 +399,33 @@ export class FolderNoteManager extends BaseManager {
           }
         }
 
-        const hasClass = titleEl.classList.contains('has-folder-note');
-
-        if (hasNote && !hasClass) {
-          titleEl.classList.add('has-folder-note');
-        } else if (!hasNote && hasClass) {
-          titleEl.classList.remove('has-folder-note');
-        }
+        titleEl.classList.toggle('has-folder-note', hasNote);
       }
     }
   }
 
   isFolderNotePath(filePath: string): boolean {
-    const normalized = filePath.replace(/\/+$/, '');
+    const normalized = normalizePath(filePath);
     const lastSlash = normalized.lastIndexOf('/');
-    const fileNameWithExt =
-      lastSlash >= 0 ? normalized.slice(lastSlash + 1) : normalized;
+    if (lastSlash <= 0) return false;
 
-    const parentSlash =
-      lastSlash >= 0 ? normalized.lastIndexOf('/', lastSlash - 1) : -1;
+    const parentSlash = normalized.lastIndexOf('/', lastSlash - 1);
     const parentFolderName =
-      lastSlash >= 0
-        ? parentSlash >= 0
-          ? normalized.slice(parentSlash + 1, lastSlash)
-          : normalized.slice(0, lastSlash)
-        : '';
+      parentSlash >= 0
+        ? normalized.slice(parentSlash + 1, lastSlash)
+        : normalized.slice(0, lastSlash);
 
-    const parsed = splitFileName(fileNameWithExt);
-    if (!parsed) return false;
+    const fileNameWithExt = normalized.slice(lastSlash + 1);
+    const lastDot = fileNameWithExt.lastIndexOf('.');
+    if (lastDot <= 0) return false;
+
+    const baseName = fileNameWithExt.slice(0, lastDot);
+    const ext = fileNameWithExt.slice(lastDot + 1).toLowerCase();
 
     return (
       parentFolderName !== '' &&
-      parsed.baseName === parentFolderName &&
-      (SUPPORTED_EXTENSIONS as readonly string[]).includes(
-        parsed.ext.toLowerCase(),
-      )
+      baseName === parentFolderName &&
+      (SUPPORTED_EXTENSIONS as readonly string[]).includes(ext)
     );
   }
 
@@ -449,9 +433,7 @@ export class FolderNoteManager extends BaseManager {
     const normalized = this.normalizeFolderPath(folderPath);
     if (!normalized) return null;
 
-    const lastSlash = normalized.lastIndexOf('/');
-    const folderName =
-      lastSlash >= 0 ? normalized.slice(lastSlash + 1) : normalized;
+    const folderName = this.getFolderName(normalized);
     if (!folderName || folderName === '/') return null;
 
     const prefix = `${normalized}/${folderName}.`;
@@ -499,7 +481,7 @@ export class FolderNoteManager extends BaseManager {
   }
 
   async promptRenameFolderNote(folder: TFolder, noteFile: TFile) {
-    new EJSPromptModal(
+    new PromptModal(
       this.plugin.app,
       '폴더 및 노트 이름 변경',
       folder.name,

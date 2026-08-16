@@ -1,4 +1,4 @@
-import { Setting } from 'obsidian';
+import { setIcon, Setting } from 'obsidian';
 
 /**
  * Shows an error message in the specified error element.
@@ -35,7 +35,7 @@ export function createToggleSection(
 ): HTMLElement {
   let detailEl: HTMLElement;
 
-  new Setting(containerEl)
+  const setting = new Setting(containerEl)
     .setName(title)
     .setHeading()
     .addToggle((toggle) => {
@@ -49,7 +49,9 @@ export function createToggleSection(
       });
     });
 
-  detailEl = containerEl.createDiv();
+  setting.settingEl.addClass('tk-feature-heading');
+
+  detailEl = containerEl.createDiv({ cls: 'tk-feature-detail-container' });
   detailEl.toggleClass('is-hidden', !initialValue);
 
   return detailEl;
@@ -75,6 +77,11 @@ export function createFoldableSection(
   const summaryEl = detailsEl.createEl('summary', {
     cls: 'tk-fold-summary',
   });
+
+  const iconEl = summaryEl.createSpan({
+    cls: 'tk-fold-icon',
+  });
+  setIcon(iconEl, 'chevron-right');
 
   summaryEl.createSpan({
     cls: 'tk-fold-title',

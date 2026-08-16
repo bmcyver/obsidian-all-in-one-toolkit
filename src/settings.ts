@@ -1,16 +1,16 @@
 import { App, PluginSettingTab } from 'obsidian';
 import type AllInOneToolkitPlugin from './main';
-import { DEFAULT_MARKDOWNLINT_RULES } from './constants/markdownlint-rules';
+import { DEFAULT_MARKDOWNLINT_RULES } from './features/markdownlint/rules';
 
 export type {
   MarkdownlintSubOptionMetadata,
   MarkdownlintRuleMetadata,
-} from './constants/markdownlint-rules';
+} from './features/markdownlint/rules';
 export {
   MARKDOWNLINT_ALL_RULES,
   DEFAULT_MARKDOWNLINT_RULES,
   getRuleDocUrl,
-} from './constants/markdownlint-rules';
+} from './features/markdownlint/rules';
 
 export interface EJSRule {
   pattern: string;
@@ -73,8 +73,8 @@ export class AllInOneToolkitSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    this.plugin.managers.forEach((manager) => {
-      manager.renderSettings(containerEl);
+    this.plugin.features.forEach((feature) => {
+      feature.renderSettings(containerEl);
     });
   }
 }

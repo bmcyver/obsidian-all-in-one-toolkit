@@ -23,7 +23,8 @@ let heicDecode: typeof HeicDecode | null = null;
 
 export function getExtension(file: File | string): string {
   const name = typeof file === 'string' ? file : file.name;
-  return name.split('.').pop()?.toLowerCase() ?? '';
+  const lastDot = name.lastIndexOf('.');
+  return lastDot > 0 ? name.slice(lastDot + 1).toLowerCase() : '';
 }
 
 export function isHeicFile(file: File | string): boolean {
